@@ -1,0 +1,35 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+python-multipart>=0.0.6
+
+# ===== Base de Datos (MongoDB) =====
+motor>=3.3.0,<3.7.0
+beanie>=1.27.0,<2.0.0
+pymongo>=4.6.0,<4.11.0
+
+# ===== Autenticación y Seguridad =====
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt==3.2.2
+
+# ===== Validación de Datos =====
+pydantic[email]>=2.10.0
+pydantic-settings>=2.7.0
+
+# ===== Cloudinary (Imágenes/Videos) =====
+cloudinary>=1.37.0
+
+# ===== Utilidades =====
+python-dotenv>=1.0.0
+email-validator>=2.1.0
+python-dateutil>=2.8.0
+
+# ===== Rate Limiting =====
+slowapi>=0.1.9
+
+# ===== Procesamiento de Imágenes =====
+Pillow>=11.0.0
+
+pytest
+pytest-cov
+pytest-asyncio
