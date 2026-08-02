@@ -73,6 +73,5 @@ ehthumbs.db
 
 # Project Custom Ignores
 docs/
-tests/
 
 AGENTS.md
