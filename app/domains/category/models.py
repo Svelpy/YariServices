@@ -4,17 +4,17 @@ from app.core.base_model import BaseDocument
 
 class Category(BaseDocument):
     name: str
-    slug: Indexed(str)#
-    path: Indexed(str)#
+    slug: str
+    path: str
     description: str | None = None
 
-    business_id: Indexed(PydanticObjectId) #
+    business_id: PydanticObjectId
     parent_id: PydanticObjectId | None = None 
     level: int
     display_order: int
     
     banner_url: str | None = None
-    is_active: bool = True  #
+    is_active: bool = True  
     #SEO
     meta_title: str | None = None  
     meta_description: str | None = None  
@@ -29,7 +29,10 @@ class Category(BaseDocument):
             # Para listar hijos directos de forma ordenada, dentro de una empresa
             IndexModel([("business_id", ASCENDING), ("parent_id", ASCENDING), ("display_order", ASCENDING)]),
             # Para búsquedas por nivel dentro de una empresa (ej: categorías raíz del menú)
-            IndexModel([("business_id", ASCENDING), ("level", ASCENDING)])
+            IndexModel([("business_id", ASCENDING), ("level", ASCENDING)]),
+            #para el catálogo público
+            IndexModel([("business_id", ASCENDING), ("is_active", ASCENDING)]),
+
         ]
  
     def __repr__(self):

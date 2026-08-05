@@ -1,11 +1,14 @@
-from fastapi import Depends, HTTPException, Query, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from bson import ObjectId
 from beanie import PydanticObjectId
-from app.domains.users import User
-from app.shared.enums import Role, UserStatus, Module, Action
-from app.shared.services.permissions import PLATFORM_ROLES, has_permission
+from fastapi import Depends, HTTPException, Query, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.core.repositories import TenantRepository
 from app.core.security import decode_access_token
+from app.shared.enums import Action, Module, Role, UserStatus
+from app.shared.services.permissions import PLATFORM_ROLES, has_permission
+from app.domains.users import User
+
 
 # auto_error=False permite que el header sea opcional (para endpoints públicos)
 security = HTTPBearer(auto_error=False)
@@ -128,35 +131,52 @@ def require_permission(module: Module, action: Action):
     return dependency
 
 
-async def get_current_business_id(
-    business_id: PydanticObjectId | None = Query(None, description="ID de la empresa (requerido para roles de plataforma)"),
+async def resolve_authorized_business_id(
+    business_id: PydanticObjectId | None = Query(None,description="ID de la empresa (requerido para roles de plataforma)"),
     current_user: User = Depends(get_current_user),
 ) -> PydanticObjectId:
     """
-    Obtiene y valida el business_id para la solicitud actual.
+    Resuelve el tenant autorizado para la solicitud actual.
 
-    - Roles de negocio (PROPIETARIO, GERENTE, etc.): Retorna automáticamente su `current_user.business_id`.
-      Si especifican un business_id distinto, responde 403 Forbidden.
-    - Roles de plataforma (SUPERADMIN, ADMIN): Exige especificar el `business_id` en la petición.
+    - Roles de plataforma (SUPERADMIN y ADMIN): deben indicar el
+      `business_id` objetivo en la petición.
+    - Roles de negocio: nunca pueden indicar `business_id`; se utiliza el
+      tenant asociado al usuario autenticado.
+
+    El `business_id` enviado por un usuario de negocio se rechaza incluso
+    cuando coincide con el tenant de su cuenta, para mantener una única
+    fuente de contexto y evitar suplantaciones mediante parámetros.
     """
     if current_user.role in PLATFORM_ROLES:
         if business_id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Este endpoint requiere especificar el business_id explícitamente"
+                detail="El business_id es obligatorio para usuarios de plataforma.",
             )
+
         return business_id
+
+    if business_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Los usuarios de negocio no pueden especificar business_id.",
+        )
 
     if current_user.business_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Todavía no completaste el registro de tu empresa"
-        )
-
-    if business_id is not None and business_id != current_user.business_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tenés acceso a esta empresa"
+            detail="El usuario no tiene un negocio asignado.",
         )
 
     return current_user.business_id
+
+
+def create_repo(model):
+    async def dependency(
+        business_id: PydanticObjectId = Depends(
+            resolve_authorized_business_id
+        ),
+    ):
+        return TenantRepository(model, business_id)
+
+    return dependency

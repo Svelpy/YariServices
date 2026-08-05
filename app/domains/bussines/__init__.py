@@ -1,6 +1,7 @@
 from app.domains.bussines.models import Business
 from app.domains.bussines.schemas import (
     BusinessCreate,
+    BusinessMeUpdate,
     BusinessResponse,
     BusinessResponseAudit,
     BusinessUpdate,
@@ -11,6 +12,7 @@ __all__ = [
     "Business",
     "BusinessCreate",
     "BusinessUpdate",
+    "BusinessMeUpdate",
     "BusinessResponse",
     "BusinessResponseAudit",
     "BusinessService",

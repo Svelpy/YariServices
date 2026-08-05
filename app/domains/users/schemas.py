@@ -17,9 +17,7 @@ from app.shared.services.validators import (
 # ---------------------------------------------------------------------------
 
 class UserSelfRegister(BaseModel):
-    """
-    Schema para auto-registro público.
-    """
+    """Schema para auto-registro público."""
 
     email: EmailStr
     name: str | None = Field(None, min_length=2, max_length=50)
@@ -29,25 +27,25 @@ class UserSelfRegister(BaseModel):
     birth_date: datetime | None = None
     password: str = Field(..., min_length=8, max_length=100)
 
-    @field_validator('name', 'lastname')
+    @field_validator("name", "lastname")
     @classmethod
-    def validate_names(cls, v: str) -> str:
-        return validator_names(v)
+    def validate_names(cls, value: str) -> str:
+        return validator_names(value)
 
-    @field_validator('username')
+    @field_validator("username")
     @classmethod
-    def validate_username(cls, v: str | None) -> str | None:
-        return validator_username(v)
+    def validate_username(cls, value: str | None) -> str | None:
+        return validator_username(value)
 
-    @field_validator('phone_number')
+    @field_validator("phone_number")
     @classmethod
-    def validate_phone(cls, v: str | None) -> str | None:
-        return validator_phone(v)
+    def validate_phone(cls, value: str | None) -> str | None:
+        return validator_phone(value)
 
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
-    def validate_password(cls, v: str) -> str:
-        return validator_password(v)
+    def validate_password(cls, value: str) -> str:
+        return validator_password(value)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -60,29 +58,23 @@ class UserSelfRegister(BaseModel):
 
 
 class UserCreate(UserSelfRegister):
-    """
-    Schema para crear usuario desde el panel administrativo.
-    """
+    """Schema para crear un usuario desde el panel administrativo."""
 
     role: Role = Role.USER
-    business_id: PydanticObjectId | None = None  # Asignación opcional de empresa
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "email": "admin.creado@adamgroup.com.bo",
                 "password": "Passw0rd123",
-                "role": "ADMIN",
-                "business_id": "507f1f77bcf86cd799439000",
+                "role": "GERENTE",
             }
         }
     )
 
 
 class UserSelfUpdate(BaseModel):
-    """
-    Schema para actualizar datos del propio usuario.
-    """
+    """Schema para actualizar datos del propio usuario."""
 
     name: str | None = Field(None, min_length=2, max_length=50)
     lastname: str | None = Field(None, min_length=2, max_length=100)
@@ -90,20 +82,20 @@ class UserSelfUpdate(BaseModel):
     phone_number: str | None = Field(None, min_length=5, max_length=15)
     birth_date: datetime | None = None
 
-    @field_validator('name', 'lastname')
+    @field_validator("name", "lastname")
     @classmethod
-    def validate_names(cls, v: str) -> str:
-        return validator_names(v)
+    def validate_names(cls, value: str) -> str:
+        return validator_names(value)
 
-    @field_validator('username')
+    @field_validator("username")
     @classmethod
-    def validate_username(cls, v: str | None) -> str | None:
-        return validator_username(v)
+    def validate_username(cls, value: str | None) -> str | None:
+        return validator_username(value)
 
-    @field_validator('phone_number')
+    @field_validator("phone_number")
     @classmethod
-    def validate_phone(cls, v: str | None) -> str | None:
-        return validator_phone(v)
+    def validate_phone(cls, value: str | None) -> str | None:
+        return validator_phone(value)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -116,17 +108,12 @@ class UserSelfUpdate(BaseModel):
 
 
 class UserUpdate(UserSelfUpdate):
-    """
-    Schema para actualizar datos del usuario (PATCH parcial por administrador).
-    Todos los campos son opcionales.
-    """
+    """Schema para actualizar un usuario desde una ruta administrativa."""
 
     email: EmailStr | None = None
-    avatar_url: str | None = None
     email_verified: bool | None = None
     role: Role | None = None
     status: UserStatus | None = None
-    business_id: PydanticObjectId | None = None  # Actualización opcional de empresa
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -134,22 +121,22 @@ class UserUpdate(UserSelfUpdate):
                 "name": "María",
                 "email": "nuevo.correo@adamgroup.com.bo",
                 "status": "ACTIVE",
-                "role": "ADMIN",
-                "business_id": "507f1f77bcf86cd799439000",
+                "role": "GERENTE",
             }
         }
     )
 
 
+
 class AdminResetPassword(BaseModel):
-    """Schema para restablecer contraseñas administrativamente"""
+    """Schema para restablecer contraseñas administrativamente."""
 
     new_password: str = Field(..., min_length=8, max_length=100)
 
-    @field_validator('new_password')
+    @field_validator("new_password")
     @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        return validator_password(v)
+    def validate_new_password(cls, value: str) -> str:
+        return validator_password(value)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -161,7 +148,7 @@ class AdminResetPassword(BaseModel):
 
 
 class PasswordSelfUpdate(AdminResetPassword):
-    """Schema para cambiar la contraseña del usuario autenticado"""
+    """Schema para cambiar la contraseña del usuario autenticado."""
 
     current_password: str = Field(..., min_length=1)
 
@@ -180,17 +167,13 @@ class PasswordSelfUpdate(AdminResetPassword):
 # ---------------------------------------------------------------------------
 
 class UserResponse(BaseModel):
-    """
-    Schema de respuesta de usuario (nunca incluye contraseña ni datos sensibles).
-    Serializa directamente desde el documento Beanie usando from_attributes=True.
-    """
+    """Respuesta de usuario sin contraseña ni datos sensibles."""
 
     id: PydanticObjectId
-    business_id: PydanticObjectId | None = None  # ID de la empresa
+    business_id: PydanticObjectId | None = None
     email: EmailStr
     name: str | None = None
     lastname: str | None = None
-
     username: str | None = None
     phone_number: str | None = None
     birth_date: datetime | None = None
@@ -199,7 +182,6 @@ class UserResponse(BaseModel):
     email_verified: bool
     role: Role
     status: UserStatus
-
     created_at: datetime
     updated_at: datetime
 
@@ -223,7 +205,7 @@ class UserResponse(BaseModel):
                 "created_at": "2025-12-19T14:00:00Z",
                 "updated_at": "2025-12-19T14:00:00Z",
             }
-        }
+        },
     )
 
 
@@ -259,5 +241,5 @@ class UserResponseAudit(UserResponse):
                 "deleted_at": None,
                 "deleted_by": None,
             }
-        }
+        },
     )

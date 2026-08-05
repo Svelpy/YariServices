@@ -17,7 +17,7 @@ class User(BaseDocument):
 
     avatar_url: str | None = None
 
-    business_id: PydanticObjectId | None = None
+    business_id: PydanticObjectId | None = None # ES NONE PARA MIS TRABAJADORES
     #Auth
     password_hash: str | None = None
     auth_provider: AuthProvider = AuthProvider.LOCAL
@@ -25,13 +25,17 @@ class User(BaseDocument):
     email_verified: bool = False
     #Autorizacion  
     role: Role = Role.USER
-    status: UserStatus = UserStatus.PENDING_VERIFICATION
+    status: UserStatus = UserStatus.ACTIVE
 
     class Settings:
         name = "users" 
         indexes = [
             IndexModel([("username", ASCENDING)], unique=True, partialFilterExpression={"username": {"$type": "string"}}),
             IndexModel([("business_id", ASCENDING)]),
+            IndexModel([("business_id", ASCENDING), ("role", ASCENDING)]),
+            IndexModel([("business_id", ASCENDING), ("status", ASCENDING)]),
+            IndexModel([("auth_provider", ASCENDING), ("provider_user_id", ASCENDING)],unique=True,partialFilterExpression={"provider_user_id": {"$type": "string"}}),
+
         ]
     def __repr__(self):
         return f"<User {self.email} ({self.role})>"

@@ -12,7 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from app.shared.enums import Action, Module, Role, UserStatus
 from app.domains.auth import (
-    get_current_business_id,
+    resolve_authorized_business_id,
     get_current_user,
     get_current_user_optional,
     require_permission,
@@ -160,7 +160,7 @@ class TestRequirePermission:
 
 
 class TestGetCurrentBusinessId:
-    """Tests para get_current_business_id"""
+    """Tests para resolve_authorized_business_id"""
 
     @pytest.mark.asyncio
     async def test_usuario_negocio_retorna_su_business_id(self):
@@ -169,7 +169,7 @@ class TestGetCurrentBusinessId:
         bid = PydanticObjectId()
         mock_user.business_id = bid
 
-        result = await get_current_business_id(business_id=None, current_user=mock_user)
+        result = await resolve_authorized_business_id(business_id=None, current_user=mock_user)
         assert result == bid
 
     @pytest.mark.asyncio
@@ -178,7 +178,7 @@ class TestGetCurrentBusinessId:
         mock_user.role = Role.ADMIN
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_business_id(business_id=None, current_user=mock_user)
+            await resolve_authorized_business_id(business_id=None, current_user=mock_user)
         assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
 
     @pytest.mark.asyncio
@@ -187,7 +187,7 @@ class TestGetCurrentBusinessId:
         mock_user.role = Role.ADMIN
         bid = PydanticObjectId()
 
-        result = await get_current_business_id(business_id=bid, current_user=mock_user)
+        result = await resolve_authorized_business_id(business_id=bid, current_user=mock_user)
         assert result == bid
 
 

@@ -84,8 +84,8 @@ class AuthService:
             data={
                 "user_id": str(user.id),
                 "email": user.email,
-                "role": user.role.value,
-                "business_id": str(user.business_id) if user.business_id else None,
+                
+                
             }
         )
         

@@ -1,308 +1,369 @@
 """
 Tests de integración para ProductService.
-Tipo: Integration (usa BD de prueba real).
+Tipo: Integration (usa BD de prueba real con Beanie).
 """
-import pytest
+
 from unittest.mock import AsyncMock, patch
+
+import pytest
 from beanie import PydanticObjectId
 
+from app.core.repositories import TenantRepository
+from app.domains.category.models import Category
+from app.domains.category.schemas import CategoryCreate
+from app.domains.category.services import CategoryService
 from app.domains.products.models import Product
-from app.domains.products.schemas import ProductCreate, ProductUpdate
+from app.domains.products.schemas import ProductAttributeSchema, ProductCreate, ProductUpdate
 from app.domains.products.services import ProductService
 from app.domains.users.models import User
 from app.shared.enums import Role, UserStatus
 from app.shared.errors.exceptions import AppException
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-async def _make_user(email: str, role: Role = Role.PROPIETARIO) -> User:
-    u = User(email=email, role=role, status=UserStatus.ACTIVE)
-    await u.save()
-    return u
+def _repo(business_id: PydanticObjectId) -> TenantRepository[Product]:
+    return TenantRepository(Product, business_id)
 
 
-async def _make_product(name: str, bid: PydanticObjectId, actor_id: PydanticObjectId, **kwargs) -> Product:
-    return await ProductService.create_product(
-        product_data=ProductCreate(name=name, **kwargs),
+async def _make_user(
+    email: str,
+    role: Role = Role.PROPIETARIO,
+    business_id: PydanticObjectId | None = None,
+) -> User:
+    user = User(
+        email=email,
+        role=role,
+        status=UserStatus.ACTIVE,
+        business_id=business_id,
+    )
+    await user.save()
+    return user
+
+
+async def _make_category(
+    business_id: PydanticObjectId,
+    actor_id: PydanticObjectId,
+    name: str = "Electrónica",
+) -> Category:
+    return await CategoryService.create_category(
+        repository=TenantRepository(Category, business_id),
+        category_data=CategoryCreate(name=name),
         actor_id=actor_id,
-        business_id=bid,
     )
 
 
-# ---------------------------------------------------------------------------
-# create_product
-# ---------------------------------------------------------------------------
+async def _make_product(
+    name: str,
+    business_id: PydanticObjectId,
+    actor_id: PydanticObjectId,
+    **kwargs,
+) -> Product:
+    return await ProductService.create_product(
+        repository=_repo(business_id),
+        product_data=ProductCreate(name=name, **kwargs),
+        actor_id=actor_id,
+    )
+
 
 @pytest.mark.asyncio
-async def test_create_product_exitoso():
-    bid = PydanticObjectId()
+async def test_create_product_exitoso_con_nuevos_campos():
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Laptop Pro", bid, actor_id, sku="LAP-001", sale_price=1200.0)
 
-    assert prod.name == "Laptop Pro"
-    assert prod.slug == "laptop-pro"
-    assert prod.sku == "LAP-001"
-    assert prod.business_id == bid
-    assert prod.sale_price == 1200.0
-    assert prod.images == []
+    product = await _make_product(
+        "Laptop Pro",
+        business_id,
+        actor_id,
+        sku="LAP-001",
+        price=1200.0,
+        price_discount=1100.0,
+        stock=8,
+        display_order=2,
+    )
+
+    assert product.name == "Laptop Pro"
+    assert product.slug == "laptop-pro"
+    assert product.sku == "LAP-001"
+    assert product.business_id == business_id
+    assert product.price == 1200.0
+    assert product.price_discount == 1100.0
+    assert product.stock == 8
+    assert product.display_order == 2
+    assert product.images == []
 
 
 @pytest.mark.asyncio
 async def test_create_product_con_imagenes():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await ProductService.create_product(
-        product_data=ProductCreate(
-            name="Teclado RGB",
-            images=["https://cdn.io/img1.jpg", "https://cdn.io/img2.jpg"],
-        ),
-        actor_id=actor_id,
-        business_id=bid,
+
+    product = await _make_product(
+        "Teclado RGB",
+        business_id,
+        actor_id,
+        images=["https://cdn.io/img1.jpg", "https://cdn.io/img2.jpg"],
     )
-    assert len(prod.images) == 2
+
+    assert len(product.images) == 2
 
 
 @pytest.mark.asyncio
 async def test_create_product_slug_duplicado_misma_empresa_lanza_409():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    await _make_product("Mouse Inalámbrico", bid, actor_id)
+    await _make_product("Mouse Inalámbrico", business_id, actor_id)
 
     with pytest.raises(AppException) as exc:
-        await _make_product("Mouse Inalámbrico", bid, actor_id)
+        await _make_product("Mouse Inalámbrico", business_id, actor_id)
+
     assert exc.value.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_create_product_slug_duplicado_otra_empresa_exitoso():
-    bid_a = PydanticObjectId()
-    bid_b = PydanticObjectId()
+    business_id_a = PydanticObjectId()
+    business_id_b = PydanticObjectId()
     actor_id = PydanticObjectId()
-    await _make_product("Teclado", bid_a, actor_id)
+    await _make_product("Teclado", business_id_a, actor_id)
 
-    prod_b = await _make_product("Teclado", bid_b, actor_id)
-    assert prod_b.slug == "teclado"
+    product_b = await _make_product("Teclado", business_id_b, actor_id)
+
+    assert product_b.slug == "teclado"
 
 
 @pytest.mark.asyncio
 async def test_create_product_sku_duplicado_misma_empresa_lanza_409():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    await _make_product("Laptop A", bid, actor_id, sku="DUP-SKU")
+    await _make_product("Laptop A", business_id, actor_id, sku="DUP-SKU")
 
     with pytest.raises(AppException) as exc:
-        await _make_product("Laptop B", bid, actor_id, sku="DUP-SKU")
+        await _make_product("Laptop B", business_id, actor_id, sku="DUP-SKU")
+
     assert exc.value.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_create_product_barcode_duplicado_misma_empresa_lanza_409():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    await _make_product("Producto X", bid, actor_id, barcode="7890001122334")
+    await _make_product("Producto X", business_id, actor_id, barcode="7890001122334")
 
     with pytest.raises(AppException) as exc:
-        await _make_product("Producto Y", bid, actor_id, barcode="7890001122334")
+        await _make_product("Producto Y", business_id, actor_id, barcode="7890001122334")
+
     assert exc.value.status_code == 409
 
 
-# ---------------------------------------------------------------------------
-# get_product
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_get_product_exitoso():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Auriculares", bid, actor_id)
+    product = await _make_product("Auriculares", business_id, actor_id)
 
-    found = await ProductService.get_product(prod.id, business_id=bid)
-    assert found.id == prod.id
+    found = await ProductService.get_product(_repo(business_id), product.id)
+
+    assert found.id == product.id
     assert found.name == "Auriculares"
 
 
 @pytest.mark.asyncio
 async def test_get_product_no_existente_lanza_404():
     with pytest.raises(AppException) as exc:
-        await ProductService.get_product(PydanticObjectId())
+        await ProductService.get_product(_repo(PydanticObjectId()), PydanticObjectId())
+
     assert exc.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_get_product_empresa_diferente_lanza_403():
-    bid_a = PydanticObjectId()
-    bid_b = PydanticObjectId()
+async def test_get_product_empresa_diferente_lanza_404():
+    business_id_a = PydanticObjectId()
+    business_id_b = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Monitor", bid_a, actor_id)
+    product = await _make_product("Monitor", business_id_a, actor_id)
 
     with pytest.raises(AppException) as exc:
-        await ProductService.get_product(prod.id, business_id=bid_b)
-    assert exc.value.status_code == 403
+        await ProductService.get_product(_repo(business_id_b), product.id)
 
+    assert exc.value.status_code == 404
 
-# ---------------------------------------------------------------------------
-# get_product_by_slug
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_get_product_by_slug_exitoso():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Silla Gamer", bid, actor_id)
+    product = await _make_product("Silla Gamer", business_id, actor_id)
 
-    found = await ProductService.get_product_by_slug(prod.slug, business_id=bid)
-    assert found.id == prod.id
+    found = await ProductService.get_product_by_slug(_repo(business_id), product.slug)
+
+    assert found.id == product.id
 
 
 @pytest.mark.asyncio
 async def test_get_product_by_slug_no_existente_lanza_404():
     with pytest.raises(AppException) as exc:
-        await ProductService.get_product_by_slug("slug-que-no-existe", business_id=PydanticObjectId())
+        await ProductService.get_product_by_slug(
+            _repo(PydanticObjectId()),
+            "slug-que-no-existe",
+        )
+
     assert exc.value.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# list_products
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_list_products_paginacion():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    for i in range(5):
-        await _make_product(f"Producto Lista {i}", bid, actor_id)
+    for index in range(5):
+        await _make_product(f"Producto Lista {index}", business_id, actor_id)
 
-    result = await ProductService.list_products(business_id=bid, page=1, per_page=3)
+    result = await ProductService.list_products(_repo(business_id), page=1, per_page=3)
+
     assert result["per_page"] == 3
-    assert len(result["data"]) <= 3
+    assert len(result["data"]) == 3
 
 
 @pytest.mark.asyncio
 async def test_list_products_filtro_texto():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    await _make_product("Impresora Laser", bid, actor_id)
-    await _make_product("Escaner Plano", bid, actor_id)
+    await _make_product("Impresora Laser", business_id, actor_id)
+    await _make_product("Escaner Plano", business_id, actor_id)
 
-    result = await ProductService.list_products(business_id=bid, q="Impresora")
+    result = await ProductService.list_products(_repo(business_id), q="Impresora")
+
     assert result["total"] == 1
     assert result["data"][0].name == "Impresora Laser"
 
 
 @pytest.mark.asyncio
 async def test_list_products_aislamiento_por_empresa():
-    bid_a = PydanticObjectId()
-    bid_b = PydanticObjectId()
+    business_id_a = PydanticObjectId()
+    business_id_b = PydanticObjectId()
     actor_id = PydanticObjectId()
-    await _make_product("Solo de Empresa A", bid_a, actor_id)
+    await _make_product("Solo de Empresa A", business_id_a, actor_id)
 
-    result = await ProductService.list_products(business_id=bid_b)
+    result = await ProductService.list_products(_repo(business_id_b))
+
     assert result["total"] == 0
 
 
-# ---------------------------------------------------------------------------
-# update_product
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_update_product_nombre_recalcula_slug():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Nombre Producto Viejo", bid, actor_id)
+    product = await _make_product("Nombre Producto Viejo", business_id, actor_id)
 
     updated = await ProductService.update_product(
-        product_id=prod.id,
+        repository=_repo(business_id),
+        product_id=product.id,
         update_data=ProductUpdate(name="Nombre Producto Nuevo"),
         actor_id=actor_id,
-        business_id=bid,
     )
+
     assert updated.name == "Nombre Producto Nuevo"
     assert updated.slug == "nombre-producto-nuevo"
 
 
 @pytest.mark.asyncio
-async def test_update_product_precio():
-    bid = PydanticObjectId()
+async def test_update_product_nuevos_campos():
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Producto Precio", bid, actor_id, sale_price=100.0)
+    product = await _make_product(
+        "Producto Precio",
+        business_id,
+        actor_id,
+        price=100.0,
+        stock=2,
+    )
 
     updated = await ProductService.update_product(
-        product_id=prod.id,
-        update_data=ProductUpdate(sale_price=250.0),
+        repository=_repo(business_id),
+        product_id=product.id,
+        update_data=ProductUpdate(
+            price=250.0,
+            price_discount=225.0,
+            stock=12,
+            display_order=4,
+        ),
         actor_id=actor_id,
-        business_id=bid,
     )
-    assert updated.sale_price == 250.0
+
+    assert updated.price == 250.0
+    assert updated.price_discount == 225.0
+    assert updated.stock == 12
+    assert updated.display_order == 4
 
 
 @pytest.mark.asyncio
-async def test_update_product_empresa_incorrecta_lanza_403():
-    bid_a = PydanticObjectId()
-    bid_b = PydanticObjectId()
+async def test_update_product_empresa_incorrecta_lanza_404():
+    business_id_a = PydanticObjectId()
+    business_id_b = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Producto Protegido", bid_a, actor_id)
+    product = await _make_product("Producto Protegido", business_id_a, actor_id)
 
     with pytest.raises(AppException) as exc:
         await ProductService.update_product(
-            product_id=prod.id,
+            repository=_repo(business_id_b),
+            product_id=product.id,
             update_data=ProductUpdate(name="Intento"),
             actor_id=actor_id,
-            business_id=bid_b,
         )
-    assert exc.value.status_code == 403
 
+    assert exc.value.status_code == 404
 
-# ---------------------------------------------------------------------------
-# delete_product
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_delete_product_soft_delete_exitoso():
-    bid = PydanticObjectId()
-    actor = await _make_user("del_prod@example.com", Role.PROPIETARIO)
-    prod = await _make_product("Producto Eliminar", bid, actor.id)
+    business_id = PydanticObjectId()
+    actor = await _make_user("del_prod@example.com", business_id=business_id)
+    product = await _make_product("Producto Eliminar", business_id, actor.id)
 
-    await ProductService.delete_product(product_id=prod.id, actor=actor, business_id=bid)
+    await ProductService.delete_product(
+        repository=_repo(business_id),
+        product_id=product.id,
+        actor=actor,
+    )
 
     with pytest.raises(AppException) as exc:
-        await ProductService.get_product(prod.id, business_id=bid)
+        await ProductService.get_product(_repo(business_id), product.id)
+
     assert exc.value.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_delete_product_hard_delete_requiere_superadmin():
-    bid = PydanticObjectId()
-    gerente = await _make_user("gerente_del_prod@example.com", Role.GERENTE)
-    prod = await _make_product("Prod Hard Delete", bid, gerente.id)
+    business_id = PydanticObjectId()
+    manager = await _make_user("gerente_del_prod@example.com", Role.GERENTE)
+    product = await _make_product("Prod Hard Delete", business_id, manager.id)
 
     with pytest.raises(AppException) as exc:
         await ProductService.delete_product(
-            product_id=prod.id, actor=gerente, business_id=bid, hard_delete=True
+            repository=_repo(business_id),
+            product_id=product.id,
+            actor=manager,
+            hard_delete=True,
         )
+
     assert exc.value.status_code == 403
 
 
-# ---------------------------------------------------------------------------
-# upload_image / delete_image
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_upload_image_agrega_url_a_lista():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Producto Con Fotos", bid, actor_id)
-
+    product = await _make_product("Producto Con Fotos", business_id, actor_id)
     mock_file = AsyncMock()
+
     with patch(
         "app.domains.products.services.CloudinaryService.upload_image",
         new_callable=AsyncMock,
         return_value="https://cdn.io/foto1.jpg",
     ):
         updated = await ProductService.upload_image(
-            product_id=prod.id, file=mock_file, actor_id=actor_id, business_id=bid
+            repository=_repo(business_id),
+            product_id=product.id,
+            file=mock_file,
+            actor_id=actor_id,
         )
 
     assert "https://cdn.io/foto1.jpg" in updated.images
@@ -310,77 +371,120 @@ async def test_upload_image_agrega_url_a_lista():
 
 @pytest.mark.asyncio
 async def test_delete_image_remueve_url_y_llama_cloudinary():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await ProductService.create_product(
-        product_data=ProductCreate(
-            name="Producto Con Imagen",
-            images=["https://cdn.io/borrar.jpg"],
-        ),
-        actor_id=actor_id,
-        business_id=bid,
+    product = await _make_product(
+        "Producto Con Imagen",
+        business_id,
+        actor_id,
+        images=["https://cdn.io/borrar.jpg"],
     )
 
     with patch(
         "app.domains.products.services.CloudinaryService.delete_image",
         new_callable=AsyncMock,
         return_value=True,
-    ):
+    ) as mock_delete:
         updated = await ProductService.delete_image(
-            product_id=prod.id,
+            repository=_repo(business_id),
+            product_id=product.id,
             image_url="https://cdn.io/borrar.jpg",
             actor_id=actor_id,
-            business_id=bid,
         )
 
     assert "https://cdn.io/borrar.jpg" not in updated.images
+    mock_delete.assert_awaited_once_with("https://cdn.io/borrar.jpg")
 
 
 @pytest.mark.asyncio
 async def test_create_product_categoria_inexistente_lanza_404():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    fake_cat_id = PydanticObjectId()
 
     with pytest.raises(AppException) as exc:
-        await _make_product("Producto Cat Fake", bid, actor_id, category_id=fake_cat_id)
+        await _make_product(
+            "Producto Cat Fake",
+            business_id,
+            actor_id,
+            category_id=PydanticObjectId(),
+        )
+
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_product_categoria_de_otro_tenant_lanza_404():
+    business_id_a = PydanticObjectId()
+    business_id_b = PydanticObjectId()
+    actor_id = PydanticObjectId()
+    category = await _make_category(business_id_a, actor_id)
+
+    with pytest.raises(AppException) as exc:
+        await _make_product(
+            "Producto Cat Otro Tenant",
+            business_id_b,
+            actor_id,
+            category_id=category.id,
+        )
+
     assert exc.value.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_list_products_filtro_categoria_e_is_active():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    cat_id = PydanticObjectId()
+    category = await _make_category(business_id, actor_id)
 
-    p1 = await _make_product("Producto Cat A", bid, actor_id, category_id=cat_id, is_active=True)
-    p2 = await _make_product("Producto Sin Cat", bid, actor_id, is_active=True)
+    product_with_category = await _make_product(
+        "Producto Cat A",
+        business_id,
+        actor_id,
+        category_id=category.id,
+        is_active=True,
+    )
+    await _make_product("Producto Sin Cat", business_id, actor_id, is_active=True)
+    await _make_product("Producto Inactivo", business_id, actor_id, is_active=False)
 
-    res_cat = await ProductService.list_products(business_id=bid, category_id=cat_id)
-    assert res_cat["total"] == 1
-    assert res_cat["data"][0].id == p1.id
+    result_category = await ProductService.list_products(
+        _repo(business_id),
+        category_id=category.id,
+    )
+    result_active = await ProductService.list_products(
+        _repo(business_id),
+        is_active=True,
+    )
 
-    res_active = await ProductService.list_products(business_id=bid, is_active=True)
-    assert res_active["total"] == 2
+    assert result_category["total"] == 1
+    assert result_category["data"][0].id == product_with_category.id
+    assert result_active["total"] == 2
 
 
 @pytest.mark.asyncio
-async def test_update_product_barcode_y_sku_y_atributos():
-    bid = PydanticObjectId()
+async def test_update_product_barcode_sku_y_atributos():
+    business_id = PydanticObjectId()
     actor_id = PydanticObjectId()
-    prod = await _make_product("Laptop Base", bid, actor_id, barcode="111111", sku="SKU-BASE")
+    product = await _make_product(
+        "Laptop Base",
+        business_id,
+        actor_id,
+        barcode="111111",
+        sku="SKU-BASE",
+    )
 
-    from app.domains.products.schemas import ProductAttributeSchema
     updated = await ProductService.update_product(
-        product_id=prod.id,
+        repository=_repo(business_id),
+        product_id=product.id,
         update_data=ProductUpdate(
             barcode="222222",
             sku="SKU-NUEVO",
-            attributes=[ProductAttributeSchema(key="ram", value="32GB", label="RAM")],
+            attributes=[
+                ProductAttributeSchema(key="ram", value="32GB", label="RAM")
+            ],
         ),
         actor_id=actor_id,
-        business_id=bid,
     )
+
     assert updated.barcode == "222222"
     assert updated.sku == "SKU-NUEVO"
     assert len(updated.attributes) == 1
@@ -389,19 +493,27 @@ async def test_update_product_barcode_y_sku_y_atributos():
 
 @pytest.mark.asyncio
 async def test_delete_product_hard_delete_como_superadmin():
-    bid = PydanticObjectId()
+    business_id = PydanticObjectId()
     superadmin = await _make_user("super_prod_del@example.com", Role.SUPERADMIN)
-    prod = await _make_product("Prod Hard Delete", bid, superadmin.id)
+    product = await _make_product("Prod Hard Delete", business_id, superadmin.id)
 
-    await ProductService.delete_product(product_id=prod.id, actor=superadmin, business_id=bid, hard_delete=True)
+    await ProductService.delete_product(
+        repository=_repo(business_id),
+        product_id=product.id,
+        actor=superadmin,
+        hard_delete=True,
+    )
 
-    db_prod = await Product.get(prod.id)
-    assert db_prod is None
+    assert await _repo(business_id).get(product.id) is None
 
 
 def test_product_model_repr_and_str():
-    bid = PydanticObjectId()
-    prod = Product(name="Laptop Dell XPS", slug="laptop-dell-xps", business_id=bid)
-    assert repr(prod) == f"<Product Laptop Dell XPS ({bid})>"
-    assert str(prod) == "Laptop Dell XPS"
+    business_id = PydanticObjectId()
+    product = Product(
+        name="Laptop Dell XPS",
+        slug="laptop-dell-xps",
+        business_id=business_id,
+    )
 
+    assert repr(product) == f"<Product Laptop Dell XPS ({business_id})>"
+    assert str(product) == "Laptop Dell XPS"

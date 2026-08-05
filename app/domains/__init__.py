@@ -5,5 +5,6 @@ from app.domains.users import User
 from app.domains.bussines import Business
 from app.domains.category import Category
 from app.domains.products import Product
+from app.domains.meta import Meta
 
-all_models = [ErrorLog, User, Business, Category, Product]
+all_models = [ErrorLog, User, Business, Category, Product,Meta]

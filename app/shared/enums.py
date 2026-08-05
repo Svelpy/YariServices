@@ -38,3 +38,23 @@ class UserStatus(str, Enum):
     INACTIVE = "INACTIVE"
     SUSPENDED = "SUSPENDED"
     BANNED = "BANNED"
+
+class BusinessPlan(str, Enum):
+    BASICO = "basico"
+    PREMIUM = "premium"
+    ENTERPRISE = "enterprise"
+
+class FrontendType(str, Enum):
+    TEMPLATE = "template"
+    CUSTOM = "custom"
+
+class BillingStatus(str, Enum):
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    SUSPENDED = "suspended"
+    CANCELED = "canceled"
+
+class TitlePosition(str, Enum):
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"

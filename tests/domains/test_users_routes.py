@@ -12,7 +12,7 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from app.shared.enums import Role, UserStatus, AuthProvider
-from app.domains.auth.dependencies import get_current_business_id, get_current_user
+from app.domains.auth.dependencies import resolve_authorized_business_id, get_current_user
 from app.domains.users import User
 from app.domains.users.routes import router
 from app.middlewares.exception_handlers import register_exception_handlers
@@ -61,7 +61,7 @@ class TestUsersRoutes:
     def test_create_user_exitoso(self, mock_register):
         # Sobreescribir get_current_user (dependencia raíz) en lugar de require_permission
         self.app.dependency_overrides[get_current_user] = lambda: self.mock_admin
-        self.app.dependency_overrides[get_current_business_id] = lambda: self.fake_bid
+        self.app.dependency_overrides[resolve_authorized_business_id] = lambda: self.fake_bid
 
         mock_user_resp = {
             "id": "507f1f77bcf86cd799439033",
@@ -93,7 +93,7 @@ class TestUsersRoutes:
     @patch("app.domains.users.routes.UserService.list_users")
     def test_list_users_exitoso(self, mock_list):
         self.app.dependency_overrides[get_current_user] = lambda: self.mock_admin
-        self.app.dependency_overrides[get_current_business_id] = lambda: self.fake_bid
+        self.app.dependency_overrides[resolve_authorized_business_id] = lambda: self.fake_bid
 
         mock_list.return_value = {
             "total": 1,

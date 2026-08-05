@@ -1,13 +1,12 @@
 from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
+from app.core.repositories import TenantRepository
 from app.shared.enums import Action, Module
 from app.shared.schemas.pagination import PaginatedResponse
 from app.shared.schemas.tree import TreeResponse
-from app.domains.auth.dependencies import (
-    get_current_business_id,
-    require_permission,
-)
+from app.domains.auth.dependencies import create_repo, require_permission
+from app.domains.category.models import Category
 from app.domains.category.schemas import (
     CategoryCreate,
     CategoryResponse,
@@ -17,18 +16,17 @@ from app.domains.category.schemas import (
 from app.domains.category.services import CategoryService
 from app.domains.users import User
 
+
 router = APIRouter(prefix="/categories", tags=["Categories Management"])
+get_category_repository = create_repo(Category)
 
 
 @router.get("/tree", response_model=TreeResponse[CategoryResponse])
 async def get_categories_tree(
     _: User = Depends(require_permission(Module.CATEGORY, Action.READ)),
-    business_id: PydanticObjectId = Depends(get_current_business_id),
+    repo: TenantRepository[Category] = Depends(get_category_repository),
 ):
-    """
-    Retorna el árbol jerárquico completo de categorías activas de la empresa.
-    """
-    return await CategoryService.get_categories_tree(business_id=business_id)
+    return await CategoryService.get_categories_tree(repo)
 
 
 @router.get("", response_model=PaginatedResponse[CategoryResponse])
@@ -38,13 +36,10 @@ async def list_categories(
     q: str | None = Query(None, description="Búsqueda de texto en nombre, slug o descripción"),
     parent_id: PydanticObjectId | None = Query(None, description="Filtrar por ID de la categoría padre ('null' para raíz)"),
     _: User = Depends(require_permission(Module.CATEGORY, Action.READ)),
-    business_id: PydanticObjectId = Depends(get_current_business_id),
+    repo: TenantRepository[Category] = Depends(get_category_repository),
 ):
-    """
-    Lista las categorías de una empresa con filtros y paginación.
-    """
     return await CategoryService.list_categories(
-        business_id=business_id,
+        repo,
         page=page,
         per_page=per_page,
         q=q,
@@ -56,27 +51,21 @@ async def list_categories(
 async def get_category(
     category_id: PydanticObjectId,
     _: User = Depends(require_permission(Module.CATEGORY, Action.READ)),
-    business_id: PydanticObjectId = Depends(get_current_business_id),
+    repo: TenantRepository[Category] = Depends(get_category_repository),
 ):
-    """
-    Obtiene los detalles de una categoría por su ID.
-    """
-    return await CategoryService.get_category(category_id=category_id, business_id=business_id)
+    return await CategoryService.get_category(repo, category_id)
 
 
 @router.post("", response_model=CategoryResponseAudit, status_code=status.HTTP_201_CREATED)
 async def create_category(
     category_data: CategoryCreate,
     current_user: User = Depends(require_permission(Module.CATEGORY, Action.CREATE)),
-    business_id: PydanticObjectId = Depends(get_current_business_id),
+    repo: TenantRepository[Category] = Depends(get_category_repository),
 ):
-    """
-    Crea una nueva categoría para la empresa del usuario autenticado.
-    """
     return await CategoryService.create_category(
+        repository=repo,
         category_data=category_data,
         actor_id=current_user.id,
-        business_id=business_id,
     )
 
 
@@ -85,16 +74,13 @@ async def update_category(
     category_id: PydanticObjectId,
     update_data: CategoryUpdate,
     current_user: User = Depends(require_permission(Module.CATEGORY, Action.UPDATE)),
-    business_id: PydanticObjectId = Depends(get_current_business_id),
+    repo: TenantRepository[Category] = Depends(get_category_repository),
 ):
-    """
-    Actualiza la información de una categoría.
-    """
     return await CategoryService.update_category(
+        repo,
         category_id=category_id,
         update_data=update_data,
         actor_id=current_user.id,
-        business_id=business_id,
     )
 
 
@@ -103,16 +89,13 @@ async def update_category_banner(
     category_id: PydanticObjectId,
     file: UploadFile = File(...),
     current_user: User = Depends(require_permission(Module.CATEGORY, Action.UPDATE)),
-    business_id: PydanticObjectId = Depends(get_current_business_id),
+    repo: TenantRepository[Category] = Depends(get_category_repository),
 ):
-    """
-    Sube o actualiza la imagen del banner de una categoría.
-    """
     return await CategoryService.update_banner(
+        repo,
         category_id=category_id,
         file=file,
         actor_id=current_user.id,
-        business_id=business_id,
     )
 
 
@@ -121,15 +104,12 @@ async def delete_category(
     category_id: PydanticObjectId,
     hard_delete: bool = Query(False, description="Eliminación permanente"),
     current_user: User = Depends(require_permission(Module.CATEGORY, Action.DELETE)),
-    business_id: PydanticObjectId = Depends(get_current_business_id),
+    repo: TenantRepository[Category] = Depends(get_category_repository),
 ):
-    """
-    Realiza un borrado de una categoría y todos sus descendientes.
-    """
     await CategoryService.delete_category(
+        repo,
         category_id=category_id,
         actor=current_user,
-        business_id=business_id,
         hard_delete=hard_delete,
     )
     return None
