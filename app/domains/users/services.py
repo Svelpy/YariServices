@@ -1,3 +1,5 @@
+from app.domains.auth import AuthSession, CurrentUser
+
 import math
 import re
 from datetime import datetime, timezone
@@ -37,7 +39,7 @@ class UserService:
     }
 
     @staticmethod
-    def _check_hierarchy(actor: User, target: User) -> None:
+    def _check_hierarchy(actor: CurrentUser, target: User) -> None:
         """Valida jerarquía estricta y aislamiento de tenant."""
         if actor.role not in PLATFORM_ROLES and target.business_id != actor.business_id:
             raise AppException(
@@ -72,7 +74,7 @@ class UserService:
         repository: TenantRepository[User],
         global_repository: BaseRepository[User],
         user_data: UserCreate,
-        actor: User,
+        actor: CurrentUser,
     ) -> User:
         """Registra un nuevo usuario dentro del tenant autorizado."""
         actor_level = UserService.ROLE_HIERARCHY.get(actor.role, 99)
@@ -181,7 +183,7 @@ class UserService:
         global_repository: BaseRepository[User],
         user_id: PydanticObjectId,
         update_data: UserUpdate,
-        actor: User,
+        actor: CurrentUser,
     ) -> User:
         """Actualiza datos administrativos del usuario autorizado."""
         user = await UserService._get_active_user(repository, user_id)
@@ -222,14 +224,18 @@ class UserService:
             setattr(user, key, value)
 
         user.updated_by = actor.id
-        return await repository.save(user)
+        saved_user = await repository.save(user)
+
+        if ("status" in update_dict and user.status != UserStatus.ACTIVE):
+            await AuthSession.revoke_for_user(user.id,"user_status_changed")
+        return saved_user
 
     @staticmethod
     async def update_avatar(
         repository: TenantRepository[User],
         user_id: PydanticObjectId,
         file: UploadFile,
-        actor: User,
+        actor: CurrentUser,
     ) -> User:
         """Actualiza el avatar de un usuario administrativamente."""
         user = await UserService._get_active_user(repository, user_id)
@@ -251,7 +257,7 @@ class UserService:
         repository: TenantRepository[User],
         user_id: PydanticObjectId,
         data: AdminResetPassword,
-        actor: User,
+        actor: CurrentUser,
     ) -> None:
         """Restablece administrativamente la contraseña de un usuario."""
         user = await UserService._get_active_user(repository, user_id)
@@ -260,12 +266,13 @@ class UserService:
         user.password_hash = hash_password(data.new_password)
         user.updated_by = actor.id
         await repository.save(user)
+        await AuthSession.revoke_for_user(user.id,"admin_password_reset")
 
     @staticmethod
     async def delete_user(
         repository: TenantRepository[User],
         user_id: PydanticObjectId,
-        actor: User,
+        actor: CurrentUser,
         hard_delete: bool = False,
     ) -> None:
         """
@@ -284,6 +291,7 @@ class UserService:
 
         if hard_delete:
             await repository.delete(user)
+            await AuthSession.revoke_for_user(user.id,"user_deleted")
             return
 
         user.is_deleted = True
@@ -291,6 +299,7 @@ class UserService:
         user.deleted_by = actor.id
         user.updated_by = actor.id
         await repository.save(user)
+        await AuthSession.revoke_for_user(user.id,"user_deleted")
 
     @staticmethod
     async def update_profile(
@@ -332,6 +341,7 @@ class UserService:
         user.password_hash = hash_password(data.new_password)
         user.updated_by = user.id
         await repository.save(user)
+        await AuthSession.revoke_for_user(user.id,"password_changed")
 
     @staticmethod
     async def update_avatar_self(

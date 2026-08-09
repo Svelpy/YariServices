@@ -5,6 +5,7 @@ from app.core.repositories import BaseRepository, TenantRepository
 from app.shared.enums import Action, Module, Role, UserStatus
 from app.shared.schemas.pagination import PaginatedResponse
 from app.domains.auth.dependencies import create_repo, get_current_user, require_permission
+from app.domains.auth import CurrentUser
 from app.domains.users.models import User
 from app.domains.users.schemas import (
     AdminResetPassword,
@@ -35,7 +36,7 @@ def get_global_user_repository() -> BaseRepository[User]:
 @router.post("", response_model=UserResponseAudit, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
-    current_user: User = Depends(require_permission(Module.USERS, Action.CREATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.CREATE)),
     repository: TenantRepository[User] = Depends(get_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
@@ -58,7 +59,7 @@ async def list_users(
     ),
     role: Role | None = Query(None, description="Filtrar por rol"),
     status: UserStatus | None = Query(None, description="Filtrar por estado del usuario"),
-    _: User = Depends(require_permission(Module.USERS, Action.READ)),
+    _: CurrentUser= Depends(require_permission(Module.USERS, Action.READ)),
     repository: TenantRepository[User] = Depends(get_user_repository),
 ):
     """Lista usuarios del tenant autorizado con filtros y paginación."""
@@ -134,7 +135,7 @@ async def update_avatar_self(
 @router.get("/{user_id}", response_model=UserResponseAudit)
 async def get_user(
     user_id: PydanticObjectId,
-    _: User = Depends(require_permission(Module.USERS, Action.READ)),
+    _: CurrentUser= Depends(require_permission(Module.USERS, Action.READ)),
     repository: TenantRepository[User] = Depends(get_user_repository),
 ):
     """Obtiene un usuario por ID dentro del tenant autorizado."""
@@ -148,7 +149,7 @@ async def get_user(
 async def update_user(
     user_id: PydanticObjectId,
     update_data: UserUpdate,
-    current_user: User = Depends(require_permission(Module.USERS, Action.UPDATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.UPDATE)),
     repository: TenantRepository[User] = Depends(get_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
@@ -166,7 +167,7 @@ async def update_user(
 async def reset_password(
     user_id: PydanticObjectId,
     body: AdminResetPassword,
-    current_user: User = Depends(require_permission(Module.USERS, Action.UPDATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.UPDATE)),
     repository: TenantRepository[User] = Depends(get_user_repository),
 ):
     """Restablece la contraseña de un usuario."""
@@ -183,7 +184,7 @@ async def reset_password(
 async def update_avatar(
     user_id: PydanticObjectId,
     file: UploadFile = File(...),
-    current_user: User = Depends(require_permission(Module.USERS, Action.UPDATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.UPDATE)),
     repository: TenantRepository[User] = Depends(get_user_repository),
 ):
     """Actualiza el avatar de un usuario."""
@@ -199,7 +200,7 @@ async def update_avatar(
 async def delete_user(
     user_id: PydanticObjectId,
     hard_delete: bool = Query(False, description="Eliminación permanente"),
-    current_user: User = Depends(require_permission(Module.USERS, Action.DELETE)),
+    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.DELETE)),
     repository: TenantRepository[User] = Depends(get_user_repository),
 ):
     """Elimina un usuario."""

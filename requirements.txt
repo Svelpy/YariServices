@@ -3,15 +3,13 @@ uvicorn[standard]>=0.34.0
 python-multipart>=0.0.6
 
 # ===== Base de Datos (MongoDB) =====
-motor>=3.3.0,<3.7.0
-beanie>=1.27.0,<2.0.0
-pymongo>=4.6.0,<4.11.0
+beanie>=2.1.0,<3.0.0
+pymongo>=4.11.0,<5.0.0,!=4.15.0
+dnspython>=2.1.0
 
 # ===== Autenticación y Seguridad =====
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-bcrypt==3.2.2
-
+pwdlib[argon2]
 # ===== Validación de Datos =====
 pydantic[email]>=2.10.0
 pydantic-settings>=2.7.0

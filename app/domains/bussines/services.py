@@ -8,6 +8,7 @@ from beanie import PydanticObjectId
 from app.core.repositories import BaseRepository
 from app.domains.bussines.models import Business
 from app.domains.bussines.schemas import BusinessCreate, BusinessMeUpdate, BusinessUpdate
+from app.domains.auth import CurrentUser
 from app.domains.users.models import User
 from app.shared.enums import Role
 from app.shared.errors.exceptions import AppException
@@ -21,7 +22,7 @@ class BusinessService:
         repository: BaseRepository[Business],
         user_repository: BaseRepository[User],
         data: BusinessCreate,
-        actor: User,
+        actor: CurrentUser,
     ) -> Business:
         """Crea una empresa y la vincula con su propietario."""
         owner_user = await user_repository.get(data.owner_id)
@@ -163,7 +164,7 @@ class BusinessService:
         repository: BaseRepository[Business],
         business_id: PydanticObjectId,
         update_data: BusinessUpdate | BusinessMeUpdate,
-        actor: User,
+        actor: CurrentUser,
     ) -> Business:
         """Actualiza una empresa respetando los permisos del actor."""
         business = await BusinessService.get_business(repository, business_id)
@@ -202,7 +203,7 @@ class BusinessService:
     async def update_my_business(
         repository: BaseRepository[Business],
         update_data: BusinessMeUpdate,
-        actor: User,
+        actor: CurrentUser,
     ) -> Business:
         """Actualiza el negocio propio del usuario autenticado."""
         if actor.business_id is None:
@@ -219,7 +220,7 @@ class BusinessService:
     async def delete_business(
         repository: BaseRepository[Business],
         business_id: PydanticObjectId,
-        actor: User,
+        actor: CurrentUser,
         hard_delete: bool = False,
     ) -> None:
         """Elimina una empresa de forma lógica o permanente."""

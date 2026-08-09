@@ -1,4 +1,5 @@
-from app.domains.auth.schemas import UserSelfRegister, UserLogin, TokenResponse
+from app.domains.auth.models import AuthSession
+from app.domains.auth.schemas import UserSelfRegister, UserLogin, TokenResponse, CurrentUser, AuthTokens
 from app.domains.auth.services import AuthService
 from app.domains.auth.dependencies import (
     get_current_user,
@@ -9,10 +10,14 @@ from app.domains.auth.dependencies import (
 )
 
 __all__ = [
+    #Models
+    "AuthSession",
     # Schemas
     "UserSelfRegister",
     "UserLogin",
     "TokenResponse",
+    "CurrentUser",
+    "AuthTokens",
     # Servicio de dominio
     "AuthService",
     # FastAPI Dependencies (guards de autenticación y autorización)

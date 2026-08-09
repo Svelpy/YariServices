@@ -5,6 +5,7 @@ from app.core.repositories import TenantRepository
 from app.shared.enums import Action, Module
 from app.shared.schemas.pagination import PaginatedResponse
 from app.domains.auth.dependencies import create_repo, require_permission
+from app.domains.auth import CurrentUser
 from app.domains.products.models import Product
 from app.domains.products.schemas import (
     ProductCreate,
@@ -23,7 +24,7 @@ get_product_repository = create_repo(Product)
 @router.post("", response_model=ProductResponseAudit, status_code=status.HTTP_201_CREATED)
 async def create_product(
     product_data: ProductCreate,
-    current_user: User = Depends(require_permission(Module.PRODUCTS, Action.CREATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.PRODUCTS, Action.CREATE)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Crea un nuevo producto en el catálogo del tenant autorizado."""
@@ -44,7 +45,7 @@ async def list_products(
     ),
     category_id: PydanticObjectId | None = Query(None, description="Filtrar por categoría"),
     is_active: bool | None = Query(None, description="Filtrar por estado activo/inactivo"),
-    _: User = Depends(require_permission(Module.PRODUCTS, Action.READ)),
+    _: CurrentUser= Depends(require_permission(Module.PRODUCTS, Action.READ)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Lista productos con filtros y paginación dentro del tenant autorizado."""
@@ -61,7 +62,7 @@ async def list_products(
 @router.get("/slug/{slug}", response_model=ProductResponse)
 async def get_product_by_slug(
     slug: str,
-    _: User = Depends(require_permission(Module.PRODUCTS, Action.READ)),
+    _: CurrentUser= Depends(require_permission(Module.PRODUCTS, Action.READ)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Obtiene un producto por slug dentro del tenant autorizado."""
@@ -71,7 +72,7 @@ async def get_product_by_slug(
 @router.get("/{product_id}", response_model=ProductResponseAudit)
 async def get_product(
     product_id: PydanticObjectId,
-    _: User = Depends(require_permission(Module.PRODUCTS, Action.READ)),
+    _: CurrentUser= Depends(require_permission(Module.PRODUCTS, Action.READ)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Obtiene un producto por ID dentro del tenant autorizado."""
@@ -82,7 +83,7 @@ async def get_product(
 async def update_product(
     product_id: PydanticObjectId,
     update_data: ProductUpdate,
-    current_user: User = Depends(require_permission(Module.PRODUCTS, Action.UPDATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.PRODUCTS, Action.UPDATE)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Actualiza la información de un producto dentro del tenant autorizado."""
@@ -98,7 +99,7 @@ async def update_product(
 async def delete_product(
     product_id: PydanticObjectId,
     hard_delete: bool = Query(False, description="Eliminación permanente"),
-    current_user: User = Depends(require_permission(Module.PRODUCTS, Action.DELETE)),
+    current_user: CurrentUser = Depends(require_permission(Module.PRODUCTS, Action.DELETE)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Elimina un producto dentro del tenant autorizado."""
@@ -115,7 +116,7 @@ async def delete_product(
 async def upload_product_image(
     product_id: PydanticObjectId,
     file: UploadFile = File(...),
-    current_user: User = Depends(require_permission(Module.PRODUCTS, Action.UPDATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.PRODUCTS, Action.UPDATE)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Sube una imagen para un producto del tenant autorizado."""
@@ -131,7 +132,7 @@ async def upload_product_image(
 async def delete_product_image(
     product_id: PydanticObjectId,
     image_url: str = Query(..., description="URL de Cloudinary de la imagen a eliminar"),
-    current_user: User = Depends(require_permission(Module.PRODUCTS, Action.UPDATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.PRODUCTS, Action.UPDATE)),
     repo: TenantRepository[Product] = Depends(get_product_repository),
 ):
     """Elimina una imagen de un producto del tenant autorizado."""

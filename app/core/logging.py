@@ -1,16 +1,16 @@
 import logging
 
-from app.core.config import settings
+from app.core.config import Settings
 
 
-def setup_logging() -> None:
+
+def setup_logging(settings: Settings) -> None:
     """
     Configura el sistema de logging global.
     """
     logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.WARNING,
                         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",)
     logging.getLogger("pymongo").setLevel(logging.WARNING)
-    logging.getLogger("motor").setLevel(logging.WARNING)
 
 def get_logger(name: str) -> logging.Logger:
     """

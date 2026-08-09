@@ -8,10 +8,10 @@ from fastapi import UploadFile
 
 from app.core.repositories import TenantRepository
 from app.integrations.cloudinary import CloudinaryService
+from app.domains.auth import CurrentUser
 from app.domains.category.models import Category
 from app.domains.products.models import Product, ProductAttribute
 from app.domains.products.schemas import ProductCreate, ProductUpdate
-from app.domains.users.models import User
 from app.shared.enums import Role
 from app.shared.errors.exceptions import AppException
 from app.shared.services.slug import generate_slug
@@ -295,7 +295,7 @@ class ProductService:
     async def delete_product(
         repository: TenantRepository[Product],
         product_id: PydanticObjectId,
-        actor: User,
+        actor: CurrentUser,
         hard_delete: bool = False,
     ) -> None:
         """Elimina un producto de forma lógica o permanente."""

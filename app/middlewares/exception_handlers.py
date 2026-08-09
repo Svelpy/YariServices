@@ -1,17 +1,18 @@
-import traceback
 import logging
-from fastapi import FastAPI, Request
+import traceback
+
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.config import settings
+from app.core.config import Settings
 from app.shared.errors.exceptions import AppException
 from app.domains.error_logs import ErrorLog
 
 logger = logging.getLogger(__name__)
 
-def register_exception_handlers(app: FastAPI) -> None:
+def register_exception_handlers(app: FastAPI, settings: Settings) -> None:
     """
     Registra los interceptores globales de errores en la app.
     """
@@ -19,13 +20,17 @@ def register_exception_handlers(app: FastAPI) -> None:
     #Errores esperados
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
+        headers = {}
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            headers["WWW-Authenticate"] = "Bearer"
         return JSONResponse(
             status_code=exc.status_code,
             content={
                 "status": "fail",
                 "message": exc.message,
                 "details": {}
-            }
+            },
+            headers=headers,
         )
 
     #Errores de validación de datos 
@@ -63,6 +68,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def global_exception_handler(request: Request, exc: Exception):
         stack_trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
 
+        
         if settings.DEBUG: 
             logger.error(f"Error crítico detectado: {exc}\n{stack_trace}")
             return JSONResponse(

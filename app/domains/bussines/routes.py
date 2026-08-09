@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.core.repositories import BaseRepository
 from app.shared.enums import Action, Module, Role
 from app.shared.schemas.pagination import PaginatedResponse
-from app.domains.auth.dependencies import get_current_user, require_permission, require_roles
+from app.domains.auth.dependencies import get_current_principal, require_permission, require_roles
+from app.domains.auth import CurrentUser
 from app.domains.bussines.models import Business
 from app.domains.bussines.schemas import (
     BusinessCreate,
@@ -31,7 +32,7 @@ def get_user_repository() -> BaseRepository[User]:
 @router.post("", response_model=BusinessResponseAudit, status_code=status.HTTP_201_CREATED)
 async def create_business(
     data: BusinessCreate,
-    current_user: User = Depends(require_permission(Module.BUSINESS, Action.CREATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.BUSINESS, Action.CREATE)),
     repository: BaseRepository[Business] = Depends(get_business_repository),
     user_repository: BaseRepository[User] = Depends(get_user_repository),
 ):
@@ -50,7 +51,7 @@ async def list_businesses(
     per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
     q: str | None = Query(None, description="Búsqueda de texto en nombre o slug"),
     is_active: bool | None = Query(None, description="Filtrar por estado activo/inactivo"),
-    _: User = Depends(require_permission(Module.BUSINESS, Action.READ)),
+    _: CurrentUser= Depends(require_permission(Module.BUSINESS, Action.READ)),
     repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Lista empresas registradas desde la plataforma."""
@@ -65,7 +66,7 @@ async def list_businesses(
 
 @router.get("/me", response_model=BusinessResponse)
 async def get_my_business(
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_principal),
     repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Obtiene la empresa asociada al usuario autenticado."""
@@ -84,7 +85,7 @@ async def get_my_business(
 @router.patch("/me", response_model=BusinessResponse)
 async def update_my_business(
     update_data: BusinessMeUpdate,
-    current_user: User = Depends(require_roles(Role.PROPIETARIO, Role.GERENTE)),
+    current_user: CurrentUser = Depends(require_roles(Role.PROPIETARIO, Role.GERENTE)),
     repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Actualiza el perfil editable de la empresa del usuario autenticado."""
@@ -111,7 +112,7 @@ async def get_business_by_slug(
 @router.get("/{business_id}", response_model=BusinessResponseAudit)
 async def get_business(
     business_id: PydanticObjectId,
-    _: User = Depends(require_permission(Module.BUSINESS, Action.READ)),
+    _: CurrentUser= Depends(require_permission(Module.BUSINESS, Action.READ)),
     repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Obtiene los detalles de una empresa desde la plataforma."""
@@ -125,7 +126,7 @@ async def get_business(
 async def update_business(
     business_id: PydanticObjectId,
     update_data: BusinessUpdate,
-    current_user: User = Depends(require_permission(Module.BUSINESS, Action.UPDATE)),
+    current_user: CurrentUser = Depends(require_permission(Module.BUSINESS, Action.UPDATE)),
     repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Actualiza los datos administrativos de una empresa."""
@@ -141,7 +142,7 @@ async def update_business(
 async def delete_business(
     business_id: PydanticObjectId,
     hard_delete: bool = Query(False, description="Eliminación permanente"),
-    current_user: User = Depends(require_permission(Module.BUSINESS, Action.DELETE)),
+    current_user: CurrentUser = Depends(require_permission(Module.BUSINESS, Action.DELETE)),
     repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Elimina una empresa desde la plataforma."""

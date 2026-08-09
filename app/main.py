@@ -1,22 +1,33 @@
 from contextlib import asynccontextmanager
+from pymongo import AsyncMongoClient
 from fastapi import FastAPI
 
-from app.core.config import settings
-from app.core.database import connect_to_mongo, close_mongo_connection
+from app.core.config import get_settings
+from app.core.database import initialize_beanie
 from app.core.logging import setup_logging
+from app.integrations.cloudinary import configure_cloudinary
 from app.middlewares import register_all_middlewares
 from app.api import api_router
 
-# Inicializar logging
-setup_logging()
+settings = get_settings()
+setup_logging(settings)
+
 
 #Ciclo de vida
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Eventos de ciclo de vida: startup y shutdown."""
-    await connect_to_mongo()
-    yield
-    await close_mongo_connection()
+    configure_cloudinary(settings)
+    mongodb_client = AsyncMongoClient(settings.MONGODB_URL,tz_aware=True)
+    database = mongodb_client.get_database(settings.MONGODB_DB_NAME)
+    app.state.mongodb_client=mongodb_client
+    app.state.database=database 
+    try:
+        await database.command("ping")
+        await initialize_beanie(database, settings)
+        yield
+    finally:
+        await app.state.mongodb_client.close()
 
 
 # Crear aplicación
@@ -31,7 +42,7 @@ app = FastAPI(
 )
 
 # Registrar middlewares
-register_all_middlewares(app)
+register_all_middlewares(app,settings)
 
 # Registrar routers
 app.include_router(api_router)

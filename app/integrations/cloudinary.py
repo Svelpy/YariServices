@@ -1,15 +1,18 @@
 import cloudinary
 import cloudinary.uploader
 from fastapi import UploadFile
-from app.core.config import settings
+
+from app.core.config import Settings, get_settings
 from app.shared.errors.exceptions import AppException
 
-cloudinary.config( 
-  cloud_name = settings.CLOUDINARY_CLOUD_NAME, 
-  api_key = settings.CLOUDINARY_API_KEY, 
-  api_secret = settings.CLOUDINARY_API_SECRET,
-  secure = True
-)
+
+def configure_cloudinary(settings: Settings) -> None:
+    cloudinary.config(
+        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+        api_key=settings.CLOUDINARY_API_KEY,
+        api_secret=settings.CLOUDINARY_API_SECRET,
+        secure=True,
+    )
 
 class CloudinaryService:
     @staticmethod
@@ -37,7 +40,10 @@ class CloudinaryService:
     
     
     @staticmethod
-    async def upload_image(file: UploadFile, folder: str) -> str:
+    async def upload_image(
+        file: UploadFile,
+        folder: str,
+    ) -> str:
         """
         Sube una imagen a Cloudinary y retorna la URL segura.
         """
@@ -60,7 +66,7 @@ class CloudinaryService:
             
             response = cloudinary.uploader.upload(
                 content, 
-                folder=f"{settings.CLOUDINARY_FOLDER_NAME}/{folder}",
+                folder=f"{get_settings().CLOUDINARY_FOLDER_NAME}/{folder}",
                 resource_type="image"
             )
             return response.get("secure_url")

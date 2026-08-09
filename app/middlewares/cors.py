@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
+from app.core.config import Settings
 
 
-def register_cors(app: FastAPI) -> None:
+def register_cors(app: FastAPI,settings: Settings) -> None:
     """
     Registra el middleware de CORS en la app.
     """
@@ -12,6 +12,6 @@ def register_cors(app: FastAPI) -> None:
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS_LIST,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     )

@@ -1,7 +1,9 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from datetime import datetime
+from beanie import PydanticObjectId
 
 from app.shared.services.validators import validator_names, validator_username, validator_password, validator_phone
+from app.shared.enums import Role
 
 
 
@@ -71,10 +73,24 @@ class TokenResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTA3ZjFmNzdiY2Y4NmNkNzk5NDM5MDExIn0.abc123signature",
+                "access_token": "<jwt-access-token>",
                 "token_type": "bearer",
             }
         }
     )
+class AuthTokens(BaseModel):
+    access_token: str
+    refresh_token: str
 
+class CurrentUser(BaseModel):
+    id: PydanticObjectId
+    role: Role
+    business_id: PydanticObjectId | None = None
 
+class TokenClaims(BaseModel):
+    sub: PydanticObjectId
+    role: Role
+    business_id: PydanticObjectId | None = None
+    iat: datetime
+    exp: datetime
+    jti: str

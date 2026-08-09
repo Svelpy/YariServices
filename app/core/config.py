@@ -1,6 +1,8 @@
+from functools import lru_cache
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
 
+Environment = Literal["development","staging","production","test"]
 
 class Settings(BaseSettings):
     """Configuración de la aplicación usando variables de entorno"""
@@ -9,7 +11,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "Proyect_Service_API"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = """Lorep Ipsum"""
-    DEBUG: bool = False
+    ENVIRONMENT: Environment = "development"
+
 
     
     # MongoDB Atlas
@@ -18,19 +21,45 @@ class Settings(BaseSettings):
     TEST_MONGODB_DB_NAME: str = None
     # JWT Authentication
     SECRET_KEY: str = None
-    ALGORITHM: str = None
-    ACCESS_TOKEN_EXPIRE_MINUTES_DEV: int = 1440  # 1 día para desarrollo
-    ACCESS_TOKEN_EXPIRE_MINUTES_PROD: int = 180    # 3 horas para producción
-    
+    ALGORITHM: str = "HS256"
+
+    ACCESS_TOKEN_EXPIRE_MINUTES_DEVELOPMENT: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES_STAGING: int = 15
+    ACCESS_TOKEN_EXPIRE_MINUTES_PRODUCTION: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS_DEVELOPMENT: int = 7
+    REFRESH_TOKEN_EXPIRE_DAYS_STAGING: int = 7
+    REFRESH_TOKEN_EXPIRE_DAYS_PRODUCTION: int = 7
+
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
+    @property
+    def DEBUG(self) -> bool:
+        return self.ENVIRONMENT == "development"
+
     @property
     def ACCESS_TOKEN_EXPIRE_MINUTES(self) -> int:
-        """
-        Retorna el tiempo de expiración del token según el modo DEBUG
+        durations = {
+            "development": self.ACCESS_TOKEN_EXPIRE_MINUTES_DEVELOPMENT,
+            "staging": self.ACCESS_TOKEN_EXPIRE_MINUTES_STAGING,
+            "production": self.ACCESS_TOKEN_EXPIRE_MINUTES_PRODUCTION,
+            "test": self.ACCESS_TOKEN_EXPIRE_MINUTES_DEVELOPMENT,
+        }
 
-        """
-        if self.DEBUG:
-            return self.ACCESS_TOKEN_EXPIRE_MINUTES_DEV
-        return self.ACCESS_TOKEN_EXPIRE_MINUTES_PROD
+        return durations[self.ENVIRONMENT]
+
+    @property
+    def REFRESH_TOKEN_EXPIRE_DAYS(self) -> int:
+        durations = {
+            "development": self.REFRESH_TOKEN_EXPIRE_DAYS_DEVELOPMENT,
+            "staging": self.REFRESH_TOKEN_EXPIRE_DAYS_STAGING,
+            "production": self.REFRESH_TOKEN_EXPIRE_DAYS_PRODUCTION,
+            "test": self.REFRESH_TOKEN_EXPIRE_DAYS_DEVELOPMENT,
+        }
+
+        return durations[self.ENVIRONMENT]
+
+    @property
+    def REFRESH_TOKEN_COOKIE_SECURE(self) -> bool:
+        return self.ENVIRONMENT in {"staging", "production"}
     
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = None
@@ -44,30 +73,30 @@ class Settings(BaseSettings):
     PROD_ORIGINS: str = None
 
     @property
-    def CORS_ORIGINS_LIST(self) -> list:
-        """
-        Retorna la lista de orígenes CORS según el modo:
+    def CORS_ORIGINS_LIST(self) -> list[str]:
 
-        """
-        if self.DEBUG:
-            return [o.strip() for o in self.DEV_ORIGINS.split(",") if o.strip()]
 
-        return [o.strip() for o in self.PROD_ORIGINS.split(",") if o.strip()]
-    # Seeds
-    SEED_ADMIN_EMAIL_1: str = "superadmin1@example.com"
-    SEED_ADMIN_NAME_1: str = "Super"
-    SEED_ADMIN_LASTNAME_1: str = "Admin Uno"
-    SEED_ADMIN_USERNAME_1: str = "superadmin1"
-    SEED_ADMIN_PASSWORD_1: str = "SuperAdmin123"
-    SEED_ADMIN_EMAIL_2: str = "superadmin2@example.com"
-    SEED_ADMIN_NAME_2: str = "Super"
-    SEED_ADMIN_LASTNAME_2: str = "Admin Dos"
-    SEED_ADMIN_USERNAME_2: str = "superadmin2"
-    SEED_ADMIN_PASSWORD_2: str = "SuperAdmin321"
+        if self.ENVIRONMENT in {"development", "test"}:
+            origins = self.DEV_ORIGINS
+        else:
+            origins = self.PROD_ORIGINS
+        if not origins:
+            raise ValueError("Debe configurarse PROD_ORIGINS en producción")
+        return [
+            origin.strip()
+            for origin in origins.split(",")
+            if origin.strip()
+        ]
+
     model_config = SettingsConfigDict(
         env_file=".env",
-        case_sensitive=True
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
     )
 
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
