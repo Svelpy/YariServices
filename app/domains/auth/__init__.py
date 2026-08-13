@@ -1,5 +1,5 @@
-from app.domains.auth.models import AuthSession
-from app.domains.auth.schemas import UserSelfRegister, UserLogin, TokenResponse, CurrentUser, AuthTokens
+from app.domains.auth.models import AuthSession, EmailVerificationToken
+from app.domains.auth.schemas import UserLogin, TokenResponse, CurrentUser, AuthTokens
 from app.domains.auth.services import AuthService
 from app.domains.auth.dependencies import (
     get_current_user,
@@ -12,8 +12,8 @@ from app.domains.auth.dependencies import (
 __all__ = [
     #Models
     "AuthSession",
+    "EmailVerificationToken",
     # Schemas
-    "UserSelfRegister",
     "UserLogin",
     "TokenResponse",
     "CurrentUser",

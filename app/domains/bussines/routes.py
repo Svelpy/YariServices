@@ -8,14 +8,13 @@ from app.domains.auth.dependencies import get_current_principal, require_permiss
 from app.domains.auth import CurrentUser
 from app.domains.bussines.models import Business
 from app.domains.bussines.schemas import (
-    BusinessCreate,
     BusinessResponse,
     BusinessResponseAudit,
     BusinessMeUpdate,
     BusinessUpdate,
 )
 from app.domains.bussines.services import BusinessService
-from app.domains.users.models import User
+
 
 
 router = APIRouter(prefix="/businesses", tags=["Business Management"])
@@ -25,24 +24,7 @@ def get_business_repository() -> BaseRepository[Business]:
     return BaseRepository(Business)
 
 
-def get_user_repository() -> BaseRepository[User]:
-    return BaseRepository(User)
 
-
-@router.post("", response_model=BusinessResponseAudit, status_code=status.HTTP_201_CREATED)
-async def create_business(
-    data: BusinessCreate,
-    current_user: CurrentUser = Depends(require_permission(Module.BUSINESS, Action.CREATE)),
-    repository: BaseRepository[Business] = Depends(get_business_repository),
-    user_repository: BaseRepository[User] = Depends(get_user_repository),
-):
-    """Registra una nueva empresa desde la plataforma."""
-    return await BusinessService.create_business(
-        repository=repository,
-        user_repository=user_repository,
-        data=data,
-        actor=current_user,
-    )
 
 
 @router.get("", response_model=PaginatedResponse[BusinessResponseAudit])

@@ -1,5 +1,7 @@
 from beanie import init_beanie
 from pymongo.asynchronous.database import AsyncDatabase
+from fastapi import Request
+from pymongo import AsyncMongoClient
 
 from app.core.config import Settings
 from app.core.logging import get_logger
@@ -10,10 +12,7 @@ logger = get_logger(__name__)
 
 
 
-async def initialize_beanie(
-    database: AsyncDatabase,
-    settings: Settings,
-) -> None:
+async def initialize_beanie(database: AsyncDatabase,settings: Settings) -> None:
     """Inicializa Beanie."""
 
     try:
@@ -24,3 +23,6 @@ async def initialize_beanie(
     except Exception:
         logger.exception("Error inicializando Beanie")
         raise
+
+def get_mongodb_client(request: Request) -> AsyncMongoClient:
+    return request.app.state.mongodb_client

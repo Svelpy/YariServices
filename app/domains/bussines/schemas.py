@@ -7,73 +7,13 @@ from app.shared.enums import BillingStatus, BusinessPlan, FrontendType
 from app.shared.services.validators import validator_business_name, validator_currency
 
 
-
-
-
-
-
-class BusinessCreate(BaseModel):
-    """Datos de perfil y configuración inicial de un negocio."""
-
+class BusinessRegistrationData(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
-    owner_id: PydanticObjectId = Field(...,description="Usuario al que se asignará la propiedad del negocio.")
 
-    description: str | None = Field(default=None, max_length=1000)
-    logo_url: str | None = Field(default=None, max_length=2048)
-    carousel_url: list[str] = Field(default_factory=list, max_length=20)
-    social_links: dict[str, str] = Field(default_factory=dict)  
-
-    email: EmailStr | None = None
-    phone: str | None = Field(default=None, max_length=30)
-    address: str | None = Field(default=None, max_length=255)
-    address_google_maps_url: str | None = Field(default=None, max_length=2048)
-
-    legal_name: str | None = Field(default=None, min_length=2, max_length=150)
-    tax_id: str | None = Field(default=None, max_length=50)
-    country: str | None = Field(default=None, max_length=100)
-    currency: str = Field(default="BOB", min_length=3, max_length=3)
-
-    frontend_type: FrontendType = FrontendType.TEMPLATE
-    custom_domain: str | None = Field(default=None, max_length=253)
-
-    @field_validator("name", "legal_name", mode="before")
+    @field_validator("name", mode="before")
     @classmethod
-    def validate_business_names(cls, value: str | None) -> str | None:
+    def validate_business_name(cls, value: str) -> str:
         return validator_business_name(value)
-
-    @field_validator("currency", mode="before")
-    @classmethod
-    def validate_currency(cls, value: str) -> str:
-        return validator_currency(value)
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "Adam Group S.R.L.",
-                "owner_id": "507f1f77bcf86cd799439011",
-                "description": "Distribuidora de productos para el hogar.",
-                "logo_url": "https://cdn.example.com/businesses/adam-group/logo.png",
-                "carousel_url": [
-                    "https://cdn.example.com/businesses/adam-group/cover-1.png",
-                    "https://cdn.example.com/businesses/adam-group/cover-2.png",
-                ],
-                "social_links": {
-                    "instagram": "https://instagram.com/adamgroup",
-                    "facebook": "https://facebook.com/adamgroup",
-                },
-                "email": "contacto@adamgroup.com",
-                "phone": "+591 70000000",
-                "address": "Av. Principal 123, Santa Cruz, Bolivia",
-                "address_google_maps_url": "https://maps.google.com/?q=Adam+Group",
-                "legal_name": "Adam Group S.R.L.",
-                "tax_id": "123456789",
-                "country": "Bolivia",
-                "currency": "BOB",
-                "frontend_type": "template",
-                "custom_domain": "adamgroup.com",
-            }
-        }
-    )
 
 
 class BusinessUpdate(BaseModel):
@@ -175,7 +115,6 @@ class BusinessResponse(BaseModel):
 
     id: PydanticObjectId
 
-    owner_id: PydanticObjectId
     name: str
     description: str | None = None
     logo_url: str | None = None
@@ -210,7 +149,6 @@ class BusinessResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439000",
-                "owner_id": "507f1f77bcf86cd799439011",
                 "name": "Adam Group S.R.L.",
                 "description": "Distribuidora de productos para el hogar.",
                 "logo_url": "https://cdn.example.com/businesses/adam-group/logo.png",
@@ -258,7 +196,6 @@ class BusinessResponseAudit(BusinessResponse):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439000",
-                "owner_id": "507f1f77bcf86cd799439011",
                 "name": "Adam Group S.R.L.",
                 "slug": "adam-group-srl",
                 "frontend_type": "template",

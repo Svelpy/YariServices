@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from jose import JWTError, jwt
 from pwdlib import PasswordHash
-
+from pwdlib.exceptions import UnknownHashError
 from app.core.config import Settings
 import hashlib
 import secrets
@@ -21,8 +21,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return password_hash.verify(plain_password, hashed_password)
-
+    try:
+        return password_hash.verify(plain_password, hashed_password)
+    except UnknownHashError:
+        return False
 
 def create_access_token(
     data: Dict[str, Any], 
@@ -90,4 +92,11 @@ def create_refresh_token() -> str:
 
 
 def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+def create_one_time_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_one_time_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()

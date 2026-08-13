@@ -6,6 +6,7 @@ from app.core.config import get_settings
 from app.core.database import initialize_beanie
 from app.core.logging import setup_logging
 from app.integrations.cloudinary import configure_cloudinary
+from app.integrations.resend import configure_resend
 from app.middlewares import register_all_middlewares
 from app.api import api_router
 
@@ -18,6 +19,7 @@ setup_logging(settings)
 async def lifespan(app: FastAPI):
     """Eventos de ciclo de vida: startup y shutdown."""
     configure_cloudinary(settings)
+    configure_resend(settings)
     mongodb_client = AsyncMongoClient(settings.MONGODB_URL,tz_aware=True)
     database = mongodb_client.get_database(settings.MONGODB_DB_NAME)
     app.state.mongodb_client=mongodb_client

@@ -16,31 +16,13 @@ from app.shared.services.validators import (
 # Schemas de escritura (entrada de datos)
 # ---------------------------------------------------------------------------
 
-class UserSelfRegister(BaseModel):
+class UserRegistrationData(BaseModel):
     """Schema para auto-registro público."""
 
     email: EmailStr
-    name: str | None = Field(None, min_length=2, max_length=50)
-    lastname: str | None = Field(None, min_length=2, max_length=100)
-    username: str | None = Field(None, min_length=4, max_length=20)
-    phone_number: str | None = Field(None, min_length=6, max_length=16)
-    birth_date: datetime | None = None
     password: str = Field(..., min_length=8, max_length=100)
 
-    @field_validator("name", "lastname")
-    @classmethod
-    def validate_names(cls, value: str) -> str:
-        return validator_names(value)
 
-    @field_validator("username")
-    @classmethod
-    def validate_username(cls, value: str | None) -> str | None:
-        return validator_username(value)
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone(cls, value: str | None) -> str | None:
-        return validator_phone(value)
 
     @field_validator("password")
     @classmethod
@@ -57,11 +39,31 @@ class UserSelfRegister(BaseModel):
     )
 
 
-class UserCreate(UserSelfRegister):
+class UserCreate(UserRegistrationData):
     """Schema para crear un usuario desde el panel administrativo."""
 
-    role: Role = Role.USER
+    name: str | None = Field(None, min_length=2, max_length=50)
+    lastname: str | None = Field(None, min_length=2, max_length=100)
+    username: str | None = Field(None, min_length=4, max_length=20)
+    phone_number: str | None = Field(None, min_length=6, max_length=16)
+    birth_date: datetime | None = None
 
+    role: Role = Role.USER
+    
+    @field_validator("name", "lastname")
+    @classmethod
+    def validate_names(cls, value: str) -> str:
+        return validator_names(value)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str | None) -> str | None:
+        return validator_username(value)
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        return validator_phone(value)
     model_config = ConfigDict(
         json_schema_extra={
             "example": {

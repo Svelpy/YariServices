@@ -2,10 +2,10 @@ from app.domains.users.models import User
 from app.domains.users.schemas import (
     AdminResetPassword,
     PasswordSelfUpdate,
+    UserRegistrationData,
     UserCreate,
     UserResponse,
     UserResponseAudit,
-    UserSelfRegister,
     UserSelfUpdate,
     UserUpdate,
 )
@@ -13,7 +13,7 @@ from app.domains.users.services import UserService
 
 __all__ = [
     "User",
-    "UserSelfRegister",
+    "UserRegistrationData",
     "UserCreate",
     "UserSelfUpdate",
     "UserUpdate",

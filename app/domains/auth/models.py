@@ -43,3 +43,19 @@ class AuthSession(Document):
                 }
             }
         )
+
+class EmailVerificationToken(Document):
+    user_id: PydanticObjectId
+    token_hash: str
+
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    used_at: datetime | None = None
+
+    class Settings:
+        name = "email_verification_tokens"
+
+        indexes = [
+            IndexModel([("token_hash", ASCENDING)], unique=True),
+            IndexModel([("expires_at", ASCENDING)], expireAfterSeconds=0),
+        ]

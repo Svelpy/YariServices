@@ -1,4 +1,4 @@
-from beanie import Indexed, PydanticObjectId
+from beanie import Indexed
 from pymongo import IndexModel, ASCENDING
 from datetime import datetime
 from pydantic import EmailStr, Field
@@ -8,7 +8,6 @@ from app.core.base_model import BaseDocument
 
 class Business(BaseDocument):
     # Identidad
-    owner_id: Indexed(PydanticObjectId, unique=True)
     name: str  
     description: str | None = None
     logo_url: str | None = None
@@ -35,7 +34,7 @@ class Business(BaseDocument):
     plan_started_at: datetime
     plan_expires_at: datetime 
     billing_status: BillingStatus = BillingStatus.ACTIVE
-    is_active: bool = True
+    is_active: bool = False
 
     class Settings:
         name = "businesses"

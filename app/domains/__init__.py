@@ -1,7 +1,7 @@
 # solo reexportamos todos los modelos de dominio para que Beanie los inicialice
 
 from app.domains.error_logs import ErrorLog
-from app.domains.auth import AuthSession
+from app.domains.auth import AuthSession, EmailVerificationToken
 from app.domains.users import User
 from app.domains.bussines import Business
 from app.domains.category import Category
@@ -15,4 +15,5 @@ all_models = [
     Product,
     Meta,
     AuthSession,
+    EmailVerificationToken,
 ]
