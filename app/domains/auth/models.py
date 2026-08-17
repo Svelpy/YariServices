@@ -51,6 +51,7 @@ class EmailVerificationToken(Document):
     expires_at: datetime
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     used_at: datetime | None = None
+    revoked_at: datetime | None = None
 
     class Settings:
         name = "email_verification_tokens"

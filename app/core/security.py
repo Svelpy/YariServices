@@ -8,6 +8,7 @@ from pwdlib import PasswordHash
 from pwdlib.exceptions import UnknownHashError
 from app.core.config import Settings
 import hashlib
+import hmac
 import secrets
 
 # Hashing de contraseñas con Argon2
@@ -93,6 +94,13 @@ def create_refresh_token() -> str:
 
 def hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+def create_csrf_token(refresh_token: str,settings: Settings) -> str:
+    return hmac.new(settings.SECRET_KEY.encode("utf-8"),refresh_token.encode("utf-8"),hashlib.sha256).hexdigest()
+
+def verify_csrf_token(refresh_token: str,csrf_token: str,settings: Settings) -> bool:
+    expected_token = create_csrf_token(refresh_token, settings)
+    return hmac.compare_digest(expected_token,csrf_token)
 
 def create_one_time_token() -> str:
     return secrets.token_urlsafe(32)

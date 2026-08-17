@@ -107,21 +107,20 @@ class UserSelfUpdate(BaseModel):
             }
         }
     )
+    
 
-
+from typing import Literal
+AdministrativeUserStatus = Literal[UserStatus.ACTIVE,UserStatus.INACTIVE,UserStatus.SUSPENDED,UserStatus.BANNED]
 class UserUpdate(UserSelfUpdate):
     """Schema para actualizar un usuario desde una ruta administrativa."""
-
-    email: EmailStr | None = None
-    email_verified: bool | None = None
+    
     role: Role | None = None
-    status: UserStatus | None = None
+    status: AdministrativeUserStatus | None = None
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "name": "María",
-                "email": "nuevo.correo@adamgroup.com.bo",
                 "status": "ACTIVE",
                 "role": "GERENTE",
             }

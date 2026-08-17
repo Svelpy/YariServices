@@ -1,6 +1,9 @@
 from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from pymongo import AsyncMongoClient
 
+from app.core.config import Settings, get_settings
+from app.core.database import get_mongodb_client
 from app.core.repositories import BaseRepository, TenantRepository
 from app.shared.enums import Action, Module, Role, UserStatus
 from app.shared.schemas.pagination import PaginatedResponse
@@ -39,14 +42,21 @@ async def create_user(
     current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.CREATE)),
     repository: TenantRepository[User] = Depends(get_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
+    mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
+    settings: Settings = Depends(get_settings),
 ):
     """Crea un nuevo usuario dentro del tenant autorizado."""
-    return await UserService.register_user(
+    created_user = await UserService.create_user(
         repository=repository,
         global_repository=global_repository,
         user_data=user_data,
         actor=current_user,
+        mongodb_client=mongodb_client,
+        settings=settings,
     )
+
+    return created_user
+
 
 
 @router.get("", response_model=PaginatedResponse[UserResponseAudit])

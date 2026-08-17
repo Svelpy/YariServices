@@ -1,6 +1,7 @@
 from typing import Any, Generic, TypeVar
 
 from beanie import Document, PydanticObjectId
+from pymongo.asynchronous.client_session import AsyncClientSession
 
 
 ModelType = TypeVar("ModelType", bound=Document)
@@ -41,8 +42,13 @@ class BaseRepository(Generic[ModelType]):
     async def count(self, filters: dict[str, Any] | None = None) -> int:
         return await self.model.find(self._build_filters(filters)).count()
 
-    async def create(self, document: ModelType) -> ModelType:
-        await document.save()
+    async def create(
+        self,
+        document: ModelType,
+        *,
+        session: AsyncClientSession | None = None,
+    ) -> ModelType:
+        await document.insert(session=session)
         return document
 
     async def save(self, document: ModelType) -> ModelType:
@@ -69,9 +75,14 @@ class TenantRepository(BaseRepository[ModelType], Generic[ModelType]):
         tenant_filters["business_id"] = self.business_id
         return tenant_filters
 
-    async def create(self, document: ModelType) -> ModelType:
+    async def create(
+        self,
+        document: ModelType,
+        *,
+        session: AsyncClientSession | None = None,
+    ) -> ModelType:
         setattr(document, "business_id", self.business_id)
-        return await super().create(document)
+        return await super().create(document, session=session)
 
     async def save(self, document: ModelType) -> ModelType:
         if getattr(document, "business_id", None) != self.business_id:

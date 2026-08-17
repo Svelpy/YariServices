@@ -1,4 +1,5 @@
 from app.domains.auth import AuthSession, CurrentUser
+from app.domains.auth.models import EmailVerificationToken
 
 import math
 import re
@@ -6,10 +7,19 @@ from datetime import datetime, timezone
 from typing import Any
 
 from beanie import PydanticObjectId
+from pymongo import AsyncMongoClient
+from pymongo.errors import DuplicateKeyError
+from pymongo.asynchronous.client_session import AsyncClientSession
 from fastapi import UploadFile
 
+from app.core.config import Settings
 from app.core.repositories import BaseRepository, TenantRepository
-from app.core.security import hash_password, verify_password
+from app.core.security import (
+    create_one_time_token,
+    hash_one_time_token,
+    hash_password,
+    verify_password,
+)
 from app.shared.enums import AuthProvider, Role, UserStatus
 from app.shared.errors.exceptions import AppException
 from app.shared.services.permissions import PLATFORM_ROLES
@@ -75,6 +85,8 @@ class UserService:
         global_repository: BaseRepository[User],
         user_data: UserCreate,
         actor: CurrentUser,
+        *,
+        session: AsyncClientSession | None = None,
     ) -> User:
         """Registra un nuevo usuario dentro del tenant autorizado."""
         actor_level = UserService.ROLE_HIERARCHY.get(actor.role, 99)
@@ -110,7 +122,7 @@ class UserService:
             lastname=user_data.lastname,
             password_hash=hash_password(user_data.password),
             role=user_data.role,
-            status=UserStatus.ACTIVE,
+            status=UserStatus.PENDING_VERIFICATION,
             email_verified=False,
             auth_provider=AuthProvider.LOCAL,
             avatar_url=None,
@@ -121,7 +133,61 @@ class UserService:
         )
 
         # El repositorio fuerza el business_id del contexto autorizado.
-        return await repository.create(new_user)
+        return await repository.create(new_user, session=session)
+
+    @staticmethod
+    async def create_user(
+        repository: TenantRepository[User],
+        global_repository: BaseRepository[User],
+        user_data: UserCreate,
+        actor: CurrentUser,
+        mongodb_client: AsyncMongoClient,
+        settings: Settings,
+    ) -> User:
+        """Crea un usuario, su token y env?a el correo de verificaci?n."""
+        from app.domains.auth.services import AuthService
+
+        now = datetime.now(timezone.utc)
+
+        async def create_user_and_token(
+            session: AsyncClientSession,
+        ) -> tuple[User, str]:
+            created_user = await UserService.register_user(
+                repository=repository,
+                global_repository=global_repository,
+                user_data=user_data,
+                actor=actor,
+                session=session,
+            )
+
+            verification_token_value = create_one_time_token()
+            verification_token = EmailVerificationToken(
+                user_id=created_user.id,
+                token_hash=hash_one_time_token(verification_token_value),
+                expires_at=now + timedelta(
+                    hours=AuthService.VERIFICATION_TOKEN_EXPIRE_HOURS
+                ),
+            )
+            await verification_token.insert(session=session)
+            return created_user, verification_token_value
+
+        try:
+            async with mongodb_client.start_session() as session:
+                created_user, verification_token_value = (
+                    await session.with_transaction(create_user_and_token)
+                )
+        except DuplicateKeyError as error:
+            raise AppException(
+                "El email o username ya est? registrado.",
+                409,
+            ) from error
+
+        await AuthService._deliver_verification_email(
+            email=str(created_user.email),
+            token_value=verification_token_value,
+            settings=settings,
+        )
+        return created_user
 
     @staticmethod
     async def list_users(
@@ -198,16 +264,6 @@ class UserService:
             )
             if existing:
                 raise AppException("El username ya está en uso", 409)
-
-        if update_data.email is not None and update_data.email != user.email:
-            existing_email = await global_repository.find_one(
-                {
-                    "email": update_data.email,
-                    "_id": {"$ne": user.id},
-                }
-            )
-            if existing_email:
-                raise AppException("El email ya está en uso", 409)
 
         update_dict = update_data.model_dump(exclude_unset=True)
         proposed_role = update_dict.get("role")

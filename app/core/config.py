@@ -72,11 +72,26 @@ class Settings(BaseSettings):
     RESEND_FROM_EMAIL: str = "Svelpy Support Team <no-reply@mail.svelpy.com>"
     RESEND_REPLY_TO: str = "soporte@svelpy.com"
     AUTH_FRONTEND_URL: str ="http://localhost:5173"
+    # Rate limiting
+    REDIS_URL: str | None = None
     # CORS — Orígenes de desarrollo (DEBUG=True)
     DEV_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175"
     # CORS — Orígenes de producción (DEBUG=False)
     PROD_ORIGINS: str = None
 
+
+    #Configuración reutilizable
+    REDIS_MAX_CONNECTIONS: int = 10
+    RATE_LIMIT_IP_PER_MINUTE: int = 300
+    RATE_LIMIT_USER_PER_MINUTE: int = 120
+    RATE_LIMIT_BUSINESS_PER_MINUTE: int = 1000
+    #Configuración específica de Auth
+    RATE_LIMIT_REGISTER_PER_HOUR: int = 5
+    RATE_LIMIT_VERIFY_PER_MINUTE: int = 10
+    RATE_LIMIT_RESEND_PER_HOUR: int = 3
+    RATE_LIMIT_LOGIN_PER_MINUTE: int = 10
+    RATE_LIMIT_REFRESH_PER_MINUTE: int = 10
+    RATE_LIMIT_LOGOUT_PER_MINUTE: int = 10
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:
 

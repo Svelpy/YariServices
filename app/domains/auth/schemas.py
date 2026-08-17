@@ -21,12 +21,14 @@ class UserLogin(BaseModel):
 class TokenResponse(BaseModel):
     """Schema de respuesta al autenticarse exitosamente"""
     access_token: str
+    csrf_token: str
     token_type: str = "bearer"
     
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "access_token": "<jwt-access-token>",
+                "csrf_token": "<csrf-token>",
                 "token_type": "bearer",
             }
         }
@@ -34,6 +36,7 @@ class TokenResponse(BaseModel):
 class AuthTokens(BaseModel):
     access_token: str
     refresh_token: str
+    csrf_token: str
 
 class CurrentUser(BaseModel):
     id: PydanticObjectId
@@ -50,3 +53,15 @@ class TokenClaims(BaseModel):
 
 class EmailVerificationResponse(BaseModel):
     message: str
+
+
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "email": "usuario@ejemplo.com",
+            }
+        }
+    )

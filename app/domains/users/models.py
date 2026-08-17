@@ -10,23 +10,22 @@ class User(BaseDocument):
     email: Indexed(EmailStr, unique=True)  # Email único e indexado
     name: str | None = None                          # Nombre(s) — obligatorio
     lastname: str | None = None                       # Apellido(s) — obligatorio
-    
     username: str | None = None
+    role: Role = Role.USER
     phone_number: str | None = None
     birth_date: datetime | None = None 
-
     avatar_url: str | None = None
 
     business_id: PydanticObjectId | None = None # ES NONE PARA MIS TRABAJADORES
-    #Auth
     password_hash: str | None = None
+    #Autorizacion Externa (AWS, Google, etc)--------------
     auth_provider: AuthProvider = AuthProvider.LOCAL
     provider_user_id: str | None= None
+    #----------------------------------------------------
+    
+    #Campos para validar en cada consulta   
     email_verified: bool = False
-    #Autorizacion  
-    role: Role = Role.USER
     status: UserStatus = UserStatus.ACTIVE
-
     class Settings:
         name = "users" 
         indexes = [
