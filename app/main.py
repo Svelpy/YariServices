@@ -15,7 +15,7 @@ settings = get_settings()
 setup_logging(settings)
 
 
-#Ciclo de vida
+#Ciclo de vida 2
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Eventos de ciclo de vida: startup y shutdown."""
