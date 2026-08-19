@@ -5,13 +5,13 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
 
 from app.domains.auth.schemas import TokenClaims
+from app.domains.auth.services import AuthService
 from app.core.repositories import TenantRepository
 from app.core.security import decode_access_token
 from app.core.config import Settings, get_settings
-from app.shared.enums import Action, Module, Role, UserStatus, BillingStatus
+from app.shared.enums import Action, Module, Role
 from app.shared.services.permissions import PLATFORM_ROLES, has_permission
 from app.domains.users import User
-from app.domains.bussines.models import Business
 
 
 # auto_error=False permite que el header sea opcional (para endpoints públicos)
@@ -40,27 +40,10 @@ async def get_current_user(
     claims = _get_token_claims(token, settings)
 
     user = await User.get(claims.sub)
-    if user is None or user.is_deleted:
+    if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token invalido",headers={"WWW-Authenticate": "Bearer"})
 
-    if user.status != UserStatus.ACTIVE or not user.email_verified:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Usuario inactivo o no verificado" )
-
-    if user.role not in PLATFORM_ROLES:
-        if user.business_id is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="El usuario no tiene un negocio asignado.")
-
-        business = await Business.get(user.business_id)
-        if business is None or business.is_deleted:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="El negocio no esta disponible.")
-
-        if not business.is_active:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="El negocio esta inactivo.")
-
-        if business.billing_status == BillingStatus.SUSPENDED:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El acceso está suspendido por falta de pago.")
-        if business.billing_status == BillingStatus.CANCELED:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="La suscripción del negocio está cancelada.")
+    await AuthService.validate_user_access(user)
     
     return user
 

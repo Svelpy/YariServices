@@ -127,6 +127,7 @@ async def login(
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/api/v1/auth",
     )
+    response.headers["Cache-Control"] = "no-store"
     return TokenResponse(
         access_token=tokens.access_token,
         csrf_token=tokens.csrf_token,
@@ -160,6 +161,7 @@ async def refresh(
         path="/api/v1/auth",
     )
 
+    response.headers["Cache-Control"] = "no-store"
     return TokenResponse(
         access_token=tokens.access_token,
         csrf_token=tokens.csrf_token,

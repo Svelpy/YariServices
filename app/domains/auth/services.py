@@ -24,11 +24,40 @@ from app.core.security import (
 from urllib.parse import urlencode
 from app.integrations.resend import ResendService
 from app.core.config import Settings
-from app.shared.enums import Role, UserStatus, AuthProvider
+from app.shared.enums import AuthProvider, BillingStatus, Role, UserStatus
 from app.shared.services.slug import generate_slug
 
 class AuthService:
     VERIFICATION_TOKEN_EXPIRE_HOURS = 24
+
+    @staticmethod
+    async def validate_user_access(user: User) -> None:
+        """Valida el estado de la cuenta y del negocio asociado."""
+        if user.is_deleted:
+            raise AppException("Usuario no disponible.", 401)
+
+        if user.status != UserStatus.ACTIVE or not user.email_verified:
+            raise AppException("Usuario inactivo o correo no verificado.",403)
+
+        if user.role in PLATFORM_ROLES:
+            return
+
+        if user.business_id is None:
+            raise AppException("El usuario no tiene un negocio asignado.",403)
+
+        business = await Business.get(user.business_id)
+
+        if business is None or business.is_deleted:
+            raise AppException("El negocio no esta disponible.", 403)
+
+        if not business.is_active:
+            raise AppException("El negocio esta inactivo.", 403)
+
+        if business.billing_status == BillingStatus.SUSPENDED:
+            raise AppException("El acceso esta suspendido por falta de pago.",403)
+
+        if business.billing_status == BillingStatus.CANCELED:
+            raise AppException("La suscripcion del negocio esta cancelada.",403)
 
 
     @staticmethod
@@ -271,8 +300,8 @@ class AuthService:
         password_is_valid = verify_password(credentials.password, password_hash_to_verify)
         if user is None or not password_is_valid:
             raise AppException("Email o contraseña incorrectos.",401)
-        if user.status != UserStatus.ACTIVE or not user.email_verified:
-            raise AppException("Usuario inactivo o correo no verificado.", 403)
+       
+        await AuthService.validate_user_access(user)
 
         # Crear token JWT
         access_token = create_access_token(
@@ -320,11 +349,7 @@ class AuthService:
         )
 
     @staticmethod
-    async def refresh(
-        refresh_token: str | None,
-        csrf_token: str | None,
-        settings: Settings,
-    ) -> AuthTokens:
+    async def refresh(refresh_token: str | None,csrf_token: str | None,settings: Settings) -> AuthTokens:
         if not refresh_token:
             raise AppException("Refresh token requerido.", 401)
         if not csrf_token or not verify_csrf_token(refresh_token,csrf_token,settings):
@@ -332,9 +357,7 @@ class AuthService:
 
         now = datetime.now(timezone.utc)
 
-        session = await AuthSession.find_one(
-            AuthSession.refresh_token_hash == hash_refresh_token(refresh_token)
-        )
+        session = await AuthSession.find_one(AuthSession.refresh_token_hash == hash_refresh_token(refresh_token))
 
         if session is None:
             raise AppException("Refresh token inválido.", 401)
@@ -349,11 +372,10 @@ class AuthService:
 
         user = await User.get(session.user_id)
 
-        if user is None or user.is_deleted:
+        if user is None:
             raise AppException("Usuario no encontrado.", 401)
 
-        if user.status != UserStatus.ACTIVE or not user.email_verified:
-            raise AppException("Usuario inactivo o correo no verificado.", 403)
+        await AuthService.validate_user_access(user)
 
         new_refresh_token = create_refresh_token()
         new_csrf_token = create_csrf_token(new_refresh_token,settings)
