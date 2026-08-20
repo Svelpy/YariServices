@@ -19,6 +19,7 @@ from app.domains.auth.services import AuthService
 from app.domains.bussines import BusinessRegistrationData
 from app.domains.users import UserRegistrationData, UserResponse
 from app.shared.enums import Role
+from app.shared.schemas.errors import ErrorResponse
 from app.middlewares.limiter import (
     RateLimitService,
     get_rate_limit_service,
@@ -27,10 +28,151 @@ from app.middlewares.limiter import (
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+WWW_AUTHENTICATE_HEADER = {
+    "description": "Indica que el cliente debe autenticarse con Bearer.",
+    "schema": {"type": "string", "example": "Bearer"},
+}
+
+RETRY_AFTER_HEADER = {
+    "description": "Segundos mínimos antes de volver a intentar la solicitud.",
+    "schema": {"type": "integer", "example": 30},
+}
+
+SET_COOKIE_HEADER = {
+    "description": (
+        "Cookie HttpOnly refresh_token establecida o eliminada por el "
+        "backend. El navegador la gestiona automáticamente."
+    ),
+    "schema": {"type": "string"},
+}
+
+CACHE_CONTROL_HEADER = {
+    "description": "La respuesta no debe almacenarse en caché.",
+    "schema": {"type": "string", "example": "no-store"},
+}
+
+COMMON_ERROR_RESPONSES = {
+    422: {
+        "model": ErrorResponse,
+        "description": "Los datos enviados no son válidos.",
+    },
+    429: {
+        "model": ErrorResponse,
+        "description": "Se superó el límite de solicitudes. Revisar Retry-After.",
+        "headers": {"Retry-After": RETRY_AFTER_HEADER},
+    },
+    500: {
+        "model": ErrorResponse,
+        "description": "Error interno; el frontend debe mostrar un mensaje genérico.",
+    },
+    503: {
+        "model": ErrorResponse,
+        "description": "Servicio temporalmente no disponible.",
+    },
+}
+
+REGISTER_ERROR_RESPONSES = {
+    **COMMON_ERROR_RESPONSES,
+    400: {
+        "model": ErrorResponse,
+        "description": "Solicitud inválida.",
+    },
+    401: {
+        "model": ErrorResponse,
+        "description": "El access token es requerido o inválido.",
+        "headers": {"WWW-Authenticate": WWW_AUTHENTICATE_HEADER},
+    },
+    403: {
+        "model": ErrorResponse,
+        "description": "Solo ADMIN y SUPERADMIN pueden registrar usuarios.",
+    },
+    409: {
+        "model": ErrorResponse,
+        "description": "El email o negocio ya está registrado.",
+    },
+}
+
+VERIFY_ERROR_RESPONSES = {
+    **COMMON_ERROR_RESPONSES,
+    400: {
+        "model": ErrorResponse,
+        "description": "El token de verificación es inválido, usado o expiró.",
+    },
+}
+
+LOGIN_ERROR_RESPONSES = {
+    **COMMON_ERROR_RESPONSES,
+    401: {
+        "model": ErrorResponse,
+        "description": "Email o contraseña incorrectos.",
+        "headers": {"WWW-Authenticate": WWW_AUTHENTICATE_HEADER},
+    },
+}
+
+REFRESH_ERROR_RESPONSES = {
+    **COMMON_ERROR_RESPONSES,
+    401: {
+        "model": ErrorResponse,
+        "description": "El refresh token es requerido, inválido, expiró o fue reutilizado.",
+        "headers": {"WWW-Authenticate": WWW_AUTHENTICATE_HEADER},
+    },
+    403: {
+        "model": ErrorResponse,
+        "description": "El header X-CSRF-Token es inválido.",
+    },
+}
+
+LOGOUT_ERROR_RESPONSES = {
+    **COMMON_ERROR_RESPONSES,
+    403: {
+        "model": ErrorResponse,
+        "description": "El header X-CSRF-Token es inválido.",
+    },
+}
+
+TOKEN_SUCCESS_RESPONSES = {
+    200: {
+        "description": "Tokens emitidos y cookie refresh_token establecida.",
+        "headers": {
+            "Set-Cookie": SET_COOKIE_HEADER,
+            "Cache-Control": CACHE_CONTROL_HEADER,
+        },
+    }
+}
+
+LOGOUT_SUCCESS_RESPONSES = {
+    204: {
+        "description": "Sesión revocada y cookie refresh_token eliminada.",
+        "headers": {"Set-Cookie": SET_COOKIE_HEADER},
+    }
+}
+
+COOKIE_OPENAPI = {
+    "parameters": [
+        {
+            "name": "refresh_token",
+            "in": "cookie",
+            "required": False,
+            "description": (
+                "Cookie HttpOnly administrada por el navegador. El frontend "
+                "no debe leerla ni enviarla manualmente."
+            ),
+            "schema": {"type": "string"},
+        }
+    ]
+}
+
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
     response_model=UserResponse,
+    summary="Registrar usuario y negocio",
+    description=(
+        "Crea un usuario propietario y su negocio. Requiere un access token "
+        "Bearer con rol ADMIN o SUPERADMIN. El frontend no debe enviar ni "
+        "esperar una contraseña en la respuesta."
+    ),
+    responses=REGISTER_ERROR_RESPONSES,
     dependencies=[Depends(rate_limit_ip_endpoint(
         "auth:register", "RATE_LIMIT_REGISTER_PER_HOUR", 3600
     ))],
@@ -49,6 +191,12 @@ async def register(
 @router.get(
     "/verify-email",
     response_model=EmailVerificationResponse,
+    summary="Verificar correo electrónico",
+    description=(
+        "Activa la cuenta usando el token recibido por correo. El token es "
+        "de un solo uso y expira en 24 horas."
+    ),
+    responses=VERIFY_ERROR_RESPONSES,
     dependencies=[Depends(rate_limit_ip_endpoint(
         "auth:verify", "RATE_LIMIT_VERIFY_PER_MINUTE", 60
     ))],
@@ -66,6 +214,12 @@ async def verify_email(
     "/resend-verification",
     response_model=EmailVerificationResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    summary="Reenviar verificación de correo",
+    description=(
+        "Solicita un nuevo enlace de verificación. La respuesta es genérica "
+        "aunque el correo no exista o ya esté verificado."
+    ),
+    responses=COMMON_ERROR_RESPONSES,
     dependencies=[Depends(rate_limit_ip_endpoint(
         "auth:resend", "RATE_LIMIT_RESEND_PER_HOUR", 3600
     ))],
@@ -94,6 +248,13 @@ async def resend_verification(
 @router.post(
     "/login",
     response_model=TokenResponse,
+    summary="Iniciar sesión",
+    description=(
+        "Recibe username como el email y password mediante "
+        "application/x-www-form-urlencoded. Devuelve el access token y "
+        "csrf_token; además establece la cookie HttpOnly refresh_token."
+    ),
+    responses={**TOKEN_SUCCESS_RESPONSES, **LOGIN_ERROR_RESPONSES},
     dependencies=[Depends(rate_limit_ip_endpoint(
         "auth:login", "RATE_LIMIT_LOGIN_PER_MINUTE", 60
     ))],
@@ -137,6 +298,15 @@ async def login(
 @router.post(
     "/refresh",
     response_model=TokenResponse,
+    summary="Renovar access token",
+    description=(
+        "Usa automáticamente la cookie HttpOnly refresh_token y requiere "
+        "X-CSRF-Token cuando existe una sesión. El frontend debe enviar "
+        "credentials: include y reemplazar el csrf_token recibido. La cookie "
+        "se rota después de un refresh exitoso."
+    ),
+    responses={**TOKEN_SUCCESS_RESPONSES, **REFRESH_ERROR_RESPONSES},
+    openapi_extra=COOKIE_OPENAPI,
     dependencies=[Depends(rate_limit_ip_endpoint(
         "auth:refresh", "RATE_LIMIT_REFRESH_PER_MINUTE", 60
     ))],
@@ -171,6 +341,15 @@ async def refresh(
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cerrar sesión",
+    description=(
+        "Revoca la sesión asociada a la cookie HttpOnly refresh_token. El "
+        "frontend debe enviar credentials: include y X-CSRF-Token cuando "
+        "existe una sesión. El access token ya emitido continúa válido hasta "
+        "su expiración."
+    ),
+    responses={**LOGOUT_SUCCESS_RESPONSES, **LOGOUT_ERROR_RESPONSES},
+    openapi_extra=COOKIE_OPENAPI,
     dependencies=[Depends(rate_limit_ip_endpoint(
         "auth:logout", "RATE_LIMIT_LOGOUT_PER_MINUTE", 60
     ))],

@@ -1,6 +1,6 @@
 from app.domains.auth.schemas import CurrentUser
 from beanie import PydanticObjectId
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
 
@@ -9,6 +9,8 @@ from app.domains.auth.services import AuthService
 from app.core.repositories import TenantRepository
 from app.core.security import decode_access_token
 from app.core.config import Settings, get_settings
+from app.shared.errors.codes import ErrorCode
+from app.shared.errors.exceptions import AppException
 from app.shared.enums import Action, Module, Role
 from app.shared.services.permissions import PLATFORM_ROLES, has_permission
 from app.domains.users import User
@@ -20,16 +22,16 @@ oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login",auto_
 
 def _get_token_claims(token: str | None,settings: Settings) -> TokenClaims:
     if token is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token de autenticación requerido",headers={"WWW-Authenticate": "Bearer"})
+        raise AppException("Token de autenticación requerido", status.HTTP_401_UNAUTHORIZED, ErrorCode.TOKEN_REQUIRED)
 
     payload = decode_access_token(token, settings)
     if payload is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token inválido",headers={"WWW-Authenticate": "Bearer"})
+        raise AppException("Token inválido", status.HTTP_401_UNAUTHORIZED, ErrorCode.TOKEN_INVALID)
 
     try:
         return TokenClaims.model_validate(payload)
     except ValidationError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token inválido",headers={"WWW-Authenticate": "Bearer"})
+        raise AppException("Token inválido", status.HTTP_401_UNAUTHORIZED, ErrorCode.TOKEN_INVALID)
 
 
 
@@ -41,7 +43,7 @@ async def get_current_user(
 
     user = await User.get(claims.sub)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token invalido",headers={"WWW-Authenticate": "Bearer"})
+        raise AppException("Token invalido", status.HTTP_401_UNAUTHORIZED, ErrorCode.TOKEN_INVALID)
 
     await AuthService.validate_user_access(user)
     
@@ -68,7 +70,7 @@ async def get_current_principal_optional(user: User | None = Depends(get_current
 def require_roles(*allowed_roles: Role):
     async def dependency(current_user: CurrentUser = Depends(get_current_principal)) -> CurrentUser:
         if current_user.role not in allowed_roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="No tenés permisos para realizar esta acción")
+            raise AppException("No tenés permisos para realizar esta acción", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
         return current_user
     return dependency
 
@@ -76,7 +78,7 @@ def require_roles(*allowed_roles: Role):
 def require_permission(module: Module, action: Action):
     async def dependency(current_user: CurrentUser = Depends(get_current_principal)) -> CurrentUser:
         if not has_permission(current_user.role, module, action):#estudia has_perssion
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="No tenés permisos para realizar esta acción" )
+            raise AppException("No tenés permisos para realizar esta acción", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
         return current_user
     return dependency
 
@@ -99,14 +101,14 @@ async def resolve_authorized_business_id(
     """
     if current_user.role in PLATFORM_ROLES:
         if business_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="El business_id es obligatorio para usuarios de plataforma.")
+            raise AppException("El business_id es obligatorio para usuarios de plataforma.", status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR)
         return business_id
 
     if business_id is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Los usuarios de negocio no pueden especificar business_id.")
+        raise AppException("Los usuarios de negocio no pueden especificar business_id.", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
 
     if current_user.business_id is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="El usuario no tiene un negocio asignado.")
+        raise AppException("El usuario no tiene un negocio asignado.", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
 
     return current_user.business_id
 

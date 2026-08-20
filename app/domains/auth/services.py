@@ -1,5 +1,6 @@
 from app.shared.services.permissions import PLATFORM_ROLES
 from datetime import datetime, timedelta, timezone
+from app.shared.errors.codes import ErrorCode
 from app.shared.errors.exceptions import AppException
 from uuid import UUID
 from pymongo import AsyncMongoClient
@@ -34,30 +35,30 @@ class AuthService:
     async def validate_user_access(user: User) -> None:
         """Valida el estado de la cuenta y del negocio asociado."""
         if user.is_deleted:
-            raise AppException("Usuario no disponible.", 401)
+            raise AppException("Usuario no disponible.", 401, ErrorCode.AUTHENTICATION_FAILED)
 
         if user.status != UserStatus.ACTIVE or not user.email_verified:
-            raise AppException("Usuario inactivo o correo no verificado.",403)
+            raise AppException("Usuario inactivo o correo no verificado.", 403, ErrorCode.PERMISSION_DENIED)
 
         if user.role in PLATFORM_ROLES:
             return
 
         if user.business_id is None:
-            raise AppException("El usuario no tiene un negocio asignado.",403)
+            raise AppException("El usuario no tiene un negocio asignado.", 403, ErrorCode.PERMISSION_DENIED)
 
         business = await Business.get(user.business_id)
 
         if business is None or business.is_deleted:
-            raise AppException("El negocio no esta disponible.", 403)
+            raise AppException("El negocio no esta disponible.", 403, ErrorCode.PERMISSION_DENIED)
 
         if not business.is_active:
-            raise AppException("El negocio esta inactivo.", 403)
+            raise AppException("El negocio esta inactivo.", 403, ErrorCode.PERMISSION_DENIED)
 
         if business.billing_status == BillingStatus.SUSPENDED:
-            raise AppException("El acceso esta suspendido por falta de pago.",403)
+            raise AppException("El acceso esta suspendido por falta de pago.", 403, ErrorCode.PERMISSION_DENIED)
 
         if business.billing_status == BillingStatus.CANCELED:
-            raise AppException("La suscripcion del negocio esta cancelada.",403)
+            raise AppException("La suscripcion del negocio esta cancelada.", 403, ErrorCode.PERMISSION_DENIED)
 
 
     @staticmethod
@@ -105,15 +106,15 @@ class AuthService:
         """Registra un propietario y crea su negocio."""
         existing_user = await User.find_one(User.email == user_data.email)
         if existing_user:
-            raise AppException("El email ya está registrado.", 409)
+            raise AppException("El email ya está registrado.", 409, ErrorCode.EMAIL_ALREADY_REGISTERED)
 
         business_slug = generate_slug(business_data.name)
         if not business_slug:
-            raise AppException("El nombre del negocio no genera un slug válido.",400)
+            raise AppException("El nombre del negocio no genera un slug válido.", 400, ErrorCode.VALIDATION_ERROR)
 
         existing_business = await Business.find_one(Business.slug == business_slug)
         if existing_business:
-            raise AppException("El nombre del negocio ya está registrado.", 409)
+            raise AppException("El nombre del negocio ya está registrado.", 409, ErrorCode.BUSINESS_ALREADY_REGISTERED)
 
 
         now = datetime.now(timezone.utc)
@@ -153,7 +154,7 @@ class AuthService:
             async with mongodb_client.start_session() as session:
                 new_business, created_user, verification_token_value=await session.with_transaction(create_registration)
         except DuplicateKeyError as error:
-            raise AppException("El email, username o negocio ya está registrado.",409) from error
+            raise AppException("El email, username o negocio ya está registrado.", 409, ErrorCode.CONFLICT) from error
 
         await AuthService._deliver_verification_email(
             email=str(created_user.email),
@@ -181,22 +182,22 @@ class AuthService:
             )
 
             if verification_token is None:
-                raise AppException("El token es inválido, usado, revocado o expiró.",400)
+                raise AppException("El token es inválido, usado, revocado o expiró.", 400, ErrorCode.VERIFICATION_TOKEN_INVALID)
 
             user = await User.get(verification_token.user_id,session=session)
             if (user is None or user.is_deleted or user.email_verified or user.status != UserStatus.PENDING_VERIFICATION):
-                raise AppException("El token es inválido, usado o expiró.", 400)
+                raise AppException("El token es inválido, usado o expiró.", 400, ErrorCode.VERIFICATION_TOKEN_INVALID)
 
             business = None
             if user.role in PLATFORM_ROLES:
                 pass
             else:
                 if user.business_id is None:
-                    raise AppException("El token es inválido, usado o expiró.", 400)
+                    raise AppException("El token es inválido, usado o expiró.", 400, ErrorCode.VERIFICATION_TOKEN_INVALID)
 
                 business = await Business.get(user.business_id,session=session)
                 if business is None or business.is_deleted:
-                    raise AppException("El token es inválido, usado o expiró.", 400)
+                    raise AppException("El token es inválido, usado o expiró.", 400, ErrorCode.VERIFICATION_TOKEN_INVALID)
 
             verification_token.used_at = now
             await verification_token.save(session=session)
@@ -299,7 +300,7 @@ class AuthService:
         #se verifica si la contraseña es valida
         password_is_valid = verify_password(credentials.password, password_hash_to_verify)
         if user is None or not password_is_valid:
-            raise AppException("Email o contraseña incorrectos.",401)
+            raise AppException("Email o contraseña incorrectos.", 401, ErrorCode.AUTHENTICATION_FAILED)
        
         await AuthService.validate_user_access(user)
 
@@ -351,29 +352,29 @@ class AuthService:
     @staticmethod
     async def refresh(refresh_token: str | None,csrf_token: str | None,settings: Settings) -> AuthTokens:
         if not refresh_token:
-            raise AppException("Refresh token requerido.", 401)
+            raise AppException("Refresh token requerido.", 401, ErrorCode.REFRESH_FAILED)
         if not csrf_token or not verify_csrf_token(refresh_token,csrf_token,settings):
-            raise AppException("CSRF token inválido.", 403)
+            raise AppException("CSRF token inválido.", 403, ErrorCode.CSRF_INVALID)
 
         now = datetime.now(timezone.utc)
 
         session = await AuthSession.find_one(AuthSession.refresh_token_hash == hash_refresh_token(refresh_token))
 
         if session is None:
-            raise AppException("Refresh token inválido.", 401)
+            raise AppException("Refresh token inválido.", 401, ErrorCode.REFRESH_FAILED)
         
         if session.revoked_at is not None:
             if (session.revocation_reason == "rotated"and session.replaced_by is not None):
                 await AuthService.revoke_session_family(session.family_id,"reuse_detected")
-            raise AppException("Refresh token ya utilizado.",401)
+            raise AppException("Refresh token ya utilizado.", 401, ErrorCode.REFRESH_FAILED)
 
         if session.expires_at <= now:
-            raise AppException("Refresh token expirado.", 401)
+            raise AppException("Refresh token expirado.", 401, ErrorCode.REFRESH_FAILED)
 
         user = await User.get(session.user_id)
 
         if user is None:
-            raise AppException("Usuario no encontrado.", 401)
+            raise AppException("Usuario no encontrado.", 401, ErrorCode.REFRESH_FAILED)
 
         await AuthService.validate_user_access(user)
 
@@ -407,10 +408,7 @@ class AuthService:
 
         if update_result.matched_count != 1:
             await new_session.delete()
-            raise AppException(
-                "Refresh token inválido o ya utilizado.",
-                401,
-            )
+            raise AppException("Refresh token inválido o ya utilizado.",401,ErrorCode.REFRESH_FAILED)
 
         access_token = create_access_token(
             data={
@@ -436,7 +434,7 @@ class AuthService:
         if not refresh_token:
             return
         if not csrf_token or not verify_csrf_token(refresh_token,csrf_token,settings):
-            raise AppException("CSRF token inválido.", 403)
+            raise AppException("CSRF token inválido.",403, ErrorCode.CSRF_INVALID)
         session = await AuthSession.find_one(AuthSession.refresh_token_hash == hash_refresh_token(refresh_token))
 
         if session is None or session.revoked_at is not None:
