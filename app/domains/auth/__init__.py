@@ -6,6 +6,8 @@ from app.domains.auth.dependencies import (
     get_current_user_optional,
     require_roles,
     require_permission,
+    require_tenant_permission,
+    require_platform_permission,
     resolve_authorized_business_id,
 )
 
@@ -25,6 +27,8 @@ __all__ = [
     "get_current_user_optional",
     "require_roles",
     "require_permission",
+    "require_tenant_permission",
+    "require_platform_permission",
     "resolve_authorized_business_id",
 ]
 

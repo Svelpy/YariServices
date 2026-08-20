@@ -17,7 +17,7 @@ from app.shared.services.validators import (
 # ---------------------------------------------------------------------------
 
 class UserRegistrationData(BaseModel):
-    """Schema para auto-registro público."""
+    """Schema para auto-registro pero que por el momento esta como administrativo."""
 
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=100)
@@ -69,6 +69,11 @@ class UserCreate(UserRegistrationData):
             "example": {
                 "email": "admin.creado@adamgroup.com.bo",
                 "password": "Passw0rd123",
+                "name": "María",
+                "lastname": "García López",
+                "username": "maria_garcia",
+                "phone_number": "+59170012345",
+                "birth_date": "1990-01-01T00:00:00Z",
                 "role": "GERENTE",
             }
         }
@@ -103,7 +108,10 @@ class UserSelfUpdate(BaseModel):
         json_schema_extra={
             "example": {
                 "name": "María",
+                "lastname": "García López",
+                "username": "maria_garcia",
                 "phone_number": "+59170099887",
+                "birth_date": "1990-01-01T00:00:00Z",
             }
         }
     )
@@ -121,6 +129,10 @@ class UserUpdate(UserSelfUpdate):
         json_schema_extra={
             "example": {
                 "name": "María",
+                "lastname": "García López",
+                "username": "maria_garcia",
+                "phone_number": "+59170099887",
+                "birth_date": "1990-01-01T00:00:00Z",
                 "status": "ACTIVE",
                 "role": "GERENTE",
             }
@@ -171,18 +183,18 @@ class UserResponse(BaseModel):
     """Respuesta de usuario sin contraseña ni datos sensibles."""
 
     id: PydanticObjectId
-    business_id: PydanticObjectId | None = None
     email: EmailStr
     name: str | None = None
     lastname: str | None = None
     username: str | None = None
+    role: Role
     phone_number: str | None = None
     birth_date: datetime | None = None
     avatar_url: str | None = None
-    auth_provider: AuthProvider
+    
     email_verified: bool
-    role: Role
     status: UserStatus
+    
     created_at: datetime
     updated_at: datetime
 
@@ -191,7 +203,6 @@ class UserResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439011",
-                "business_id": "507f1f77bcf86cd799439000",
                 "email": "usuario@adamgroup.com.bo",
                 "name": "María",
                 "lastname": "García López",
@@ -199,7 +210,6 @@ class UserResponse(BaseModel):
                 "role": "USER",
                 "status": "ACTIVE",
                 "email_verified": True,
-                "auth_provider": "LOCAL",
                 "avatar_url": None,
                 "phone_number": "+59170012345",
                 "birth_date": "1990-01-01T00:00:00Z",
@@ -211,12 +221,14 @@ class UserResponse(BaseModel):
 
 
 class UserResponseAudit(UserResponse):
+    """Respuesta de usuario completa con datos de auditoría."""
     created_by: PydanticObjectId | None = None
     updated_by: PydanticObjectId | None = None
     is_deleted: bool
     deleted_at: datetime | None = None
     deleted_by: PydanticObjectId | None = None
-
+    auth_provider: AuthProvider
+    business_id: PydanticObjectId | None = None
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={

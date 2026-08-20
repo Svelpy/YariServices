@@ -6,6 +6,7 @@ from app.shared.enums import Action, Module, Role
 from app.shared.schemas.pagination import PaginatedResponse
 from app.domains.auth.dependencies import get_current_principal, require_permission, require_roles
 from app.domains.auth import CurrentUser
+from app.domains.bussines.dependencies import get_business_repository
 from app.domains.bussines.models import Business
 from app.domains.bussines.schemas import (
     BusinessResponse,
@@ -18,12 +19,6 @@ from app.domains.bussines.services import BusinessService
 
 
 router = APIRouter(prefix="/businesses", tags=["Business Management"])
-
-
-def get_business_repository() -> BaseRepository[Business]:
-    return BaseRepository(Business)
-
-
 
 
 

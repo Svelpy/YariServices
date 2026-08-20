@@ -9,7 +9,11 @@ from app.domains.users.schemas import (
     UserSelfUpdate,
     UserUpdate,
 )
-from app.domains.users.services import UserService
+from app.domains.users.services import (
+    PlatformUserService,
+    TenantUserService,
+    UserSelfService,
+)
 
 __all__ = [
     "User",
@@ -21,5 +25,7 @@ __all__ = [
     "PasswordSelfUpdate",
     "UserResponse",
     "UserResponseAudit",
-    "UserService",
+    "TenantUserService",
+    "UserSelfService",
+    "PlatformUserService",
 ]

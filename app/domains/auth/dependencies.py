@@ -12,7 +12,11 @@ from app.core.config import Settings, get_settings
 from app.shared.errors.codes import ErrorCode
 from app.shared.errors.exceptions import AppException
 from app.shared.enums import Action, Module, Role
-from app.shared.services.permissions import PLATFORM_ROLES, has_permission
+from app.shared.services.permissions import (
+    BUSINESS_ROLES,
+    PLATFORM_ROLES,
+    has_permission,
+)
 from app.domains.users import User
 
 
@@ -80,6 +84,52 @@ def require_permission(module: Module, action: Action):
         if not has_permission(current_user.role, module, action):#estudia has_perssion
             raise AppException("No tenés permisos para realizar esta acción", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
         return current_user
+    return dependency
+
+
+def require_tenant_permission(module: Module, action: Action):
+    async def dependency(
+        current_user: CurrentUser = Depends(get_current_principal),
+    ) -> CurrentUser:
+        if current_user.role not in BUSINESS_ROLES or current_user.business_id is None:
+            raise AppException(
+                "El usuario no tiene permisos dentro de un tenant.",
+                status.HTTP_403_FORBIDDEN,
+                ErrorCode.PERMISSION_DENIED,
+            )
+
+        if not has_permission(current_user.role, module, action):
+            raise AppException(
+                "No tenÃ©s permisos para realizar esta acciÃ³n",
+                status.HTTP_403_FORBIDDEN,
+                ErrorCode.PERMISSION_DENIED,
+            )
+
+        return current_user
+
+    return dependency
+
+
+def require_platform_permission(module: Module, action: Action):
+    async def dependency(
+        current_user: CurrentUser = Depends(get_current_principal),
+    ) -> CurrentUser:
+        if current_user.role not in PLATFORM_ROLES:
+            raise AppException(
+                "Solo los usuarios de plataforma pueden realizar esta acciÃ³n.",
+                status.HTTP_403_FORBIDDEN,
+                ErrorCode.PERMISSION_DENIED,
+            )
+
+        if not has_permission(current_user.role, module, action):
+            raise AppException(
+                "No tenÃ©s permisos para realizar esta acciÃ³n",
+                status.HTTP_403_FORBIDDEN,
+                ErrorCode.PERMISSION_DENIED,
+            )
+
+        return current_user
+
     return dependency
 
 

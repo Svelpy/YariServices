@@ -7,8 +7,18 @@ from app.core.database import get_mongodb_client
 from app.core.repositories import BaseRepository, TenantRepository
 from app.shared.enums import Action, Module, Role, UserStatus
 from app.shared.schemas.pagination import PaginatedResponse
-from app.domains.auth.dependencies import create_repo, get_current_user, require_permission
+from app.domains.auth.dependencies import (
+    get_current_user,
+    require_platform_permission,
+    require_tenant_permission,
+)
 from app.domains.auth import CurrentUser
+from app.domains.bussines.dependencies import get_business_repository
+from app.domains.bussines.models import Business
+from app.domains.users.dependencies import (
+    get_current_tenant_user_repository,
+    get_global_user_repository
+)
 from app.domains.users.models import User
 from app.domains.users.schemas import (
     AdminResetPassword,
@@ -19,34 +29,33 @@ from app.domains.users.schemas import (
     UserSelfUpdate,
     UserUpdate,
 )
-from app.domains.users.services import UserService
+from app.domains.users.services import (
+    PlatformUserService,
+    TenantUserService,
+    UserSelfService,
+)
 
 
-router = APIRouter(prefix="/users", tags=["Users Management"])
-get_user_repository = create_repo(User)
-
-
-def get_global_user_repository() -> BaseRepository[User]:
-    """Repositorio global para unicidad y autogestión del usuario."""
-    return BaseRepository(User)
-
+tenant_router = APIRouter(prefix="/users", tags=["Tenant Users Management"])
+platform_router = APIRouter(prefix="/platform/users",tags=["Platform Users Management"])
+me_router = APIRouter(prefix="/me",tags=["My Profile"])
 
 # ---------------------------------------------------------------------------
 # RUTAS ADMINISTRATIVAS GENERALES
 # ---------------------------------------------------------------------------
 
 
-@router.post("", response_model=UserResponseAudit, status_code=status.HTTP_201_CREATED)
+@tenant_router.post("", response_model=UserResponseAudit, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
-    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.CREATE)),
-    repository: TenantRepository[User] = Depends(get_user_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.USERS, Action.CREATE)),
+    repository: TenantRepository[User] = Depends(get_current_tenant_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
     mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
     settings: Settings = Depends(get_settings),
 ):
     """Crea un nuevo usuario dentro del tenant autorizado."""
-    created_user = await UserService.create_user(
+    created_user = await TenantUserService.create_tenant_user(
         repository=repository,
         global_repository=global_repository,
         user_data=user_data,
@@ -59,7 +68,7 @@ async def create_user(
 
 
 
-@router.get("", response_model=PaginatedResponse[UserResponseAudit])
+@tenant_router.get("", response_model=PaginatedResponse[UserResponseAudit])
 async def list_users(
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
@@ -69,11 +78,11 @@ async def list_users(
     ),
     role: Role | None = Query(None, description="Filtrar por rol"),
     status: UserStatus | None = Query(None, description="Filtrar por estado del usuario"),
-    _: CurrentUser= Depends(require_permission(Module.USERS, Action.READ)),
-    repository: TenantRepository[User] = Depends(get_user_repository),
+    _: CurrentUser= Depends(require_tenant_permission(Module.USERS, Action.READ)),
+    repository: TenantRepository[User] = Depends(get_current_tenant_user_repository),
 ):
     """Lista usuarios del tenant autorizado con filtros y paginación."""
-    return await UserService.list_users(
+    return await TenantUserService.list_tenant_users(
         repository=repository,
         page=page,
         per_page=per_page,
@@ -88,34 +97,34 @@ async def list_users(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/me", response_model=UserResponse)
+@me_router.get("", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     """Obtiene la información del perfil autenticado."""
     return current_user
 
 
-@router.patch("/me", response_model=UserResponse)
+@me_router.patch("", response_model=UserResponse)
 async def update_profile(
     data: UserSelfUpdate,
     current_user: User = Depends(get_current_user),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
     """Actualiza los datos personales del usuario autenticado."""
-    return await UserService.update_profile(
+    return await UserSelfService.update_my_profile(
         repository=repository,
         update_data=data,
         actor=current_user,
     )
 
 
-@router.post("/me/password")
+@me_router.post("/password")
 async def change_password(
     data: PasswordSelfUpdate,
     current_user: User = Depends(get_current_user),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
     """Permite al usuario autenticado cambiar su contraseña."""
-    await UserService.change_password(
+    await UserSelfService.change_my_password(
         repository=repository,
         user=current_user,
         data=data,
@@ -123,14 +132,14 @@ async def change_password(
     return {"detail": "Contraseña actualizada exitosamente"}
 
 
-@router.post("/me/avatar", response_model=UserResponse)
+@me_router.post("/avatar", response_model=UserResponse)
 async def update_avatar_self(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
     """Permite al usuario autenticado subir o actualizar su avatar."""
-    return await UserService.update_avatar_self(
+    return await UserSelfService.update_my_avatar(
         repository=repository,
         file=file,
         actor=current_user,
@@ -142,29 +151,29 @@ async def update_avatar_self(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{user_id}", response_model=UserResponseAudit)
+@tenant_router.get("/{user_id}", response_model=UserResponseAudit)
 async def get_user(
     user_id: PydanticObjectId,
-    _: CurrentUser= Depends(require_permission(Module.USERS, Action.READ)),
-    repository: TenantRepository[User] = Depends(get_user_repository),
+    _: CurrentUser= Depends(require_tenant_permission(Module.USERS, Action.READ)),
+    repository: TenantRepository[User] = Depends(get_current_tenant_user_repository),
 ):
     """Obtiene un usuario por ID dentro del tenant autorizado."""
-    return await UserService.get_user(
+    return await TenantUserService.get_tenant_user(
         repository=repository,
         user_id=user_id,
     )
 
 
-@router.patch("/{user_id}", response_model=UserResponseAudit)
+@tenant_router.patch("/{user_id}", response_model=UserResponseAudit)
 async def update_user(
     user_id: PydanticObjectId,
     update_data: UserUpdate,
-    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.UPDATE)),
-    repository: TenantRepository[User] = Depends(get_user_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.USERS, Action.UPDATE)),
+    repository: TenantRepository[User] = Depends(get_current_tenant_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
     """Edita la información administrativa de un usuario."""
-    return await UserService.update_user(
+    return await TenantUserService.update_tenant_user(
         repository=repository,
         global_repository=global_repository,
         user_id=user_id,
@@ -173,15 +182,15 @@ async def update_user(
     )
 
 
-@router.post("/{user_id}/password")
+@tenant_router.post("/{user_id}/password")
 async def reset_password(
     user_id: PydanticObjectId,
     body: AdminResetPassword,
-    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.UPDATE)),
-    repository: TenantRepository[User] = Depends(get_user_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.USERS, Action.UPDATE)),
+    repository: TenantRepository[User] = Depends(get_current_tenant_user_repository),
 ):
     """Restablece la contraseña de un usuario."""
-    await UserService.reset_password(
+    await TenantUserService.reset_tenant_user_password(
         repository=repository,
         user_id=user_id,
         data=body,
@@ -190,34 +199,161 @@ async def reset_password(
     return {"detail": "Contraseña restablecida exitosamente"}
 
 
-@router.post("/{user_id}/avatar", response_model=UserResponseAudit)
-async def update_avatar(
+@tenant_router.delete("/{user_id}")
+async def delete_user(
     user_id: PydanticObjectId,
-    file: UploadFile = File(...),
-    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.UPDATE)),
-    repository: TenantRepository[User] = Depends(get_user_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.USERS, Action.DELETE)),
+    repository: TenantRepository[User] = Depends(get_current_tenant_user_repository),
 ):
-    """Actualiza el avatar de un usuario."""
-    return await UserService.update_avatar(
+    """Elimina un usuario."""
+    await TenantUserService.delete_tenant_user(
         repository=repository,
         user_id=user_id,
-        file=file,
+        actor=current_user,
+    )
+    return {"detail": "Usuario eliminado exitosamente"}
+
+
+# ---------------------------------------------------------------------------
+# RUTAS ADMINISTRATIVAS DE PLATAFORMA
+# ---------------------------------------------------------------------------
+
+
+@platform_router.post(
+    "",
+    response_model=UserResponseAudit,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_platform_user(
+    user_data: UserCreate,
+    business_id: PydanticObjectId | None = Query(
+        None,
+        description=(
+            "Negocio objetivo. Si se omite, se crea un usuario de plataforma."
+        ),
+    ),
+    current_user: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.CREATE)
+    ),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+    global_repository: BaseRepository[User] = Depends(get_global_user_repository),
+    business_repository: BaseRepository[Business] = Depends(get_business_repository),
+    mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
+    settings: Settings = Depends(get_settings),
+):
+    """Crea un usuario de plataforma o de un negocio seleccionado."""
+    return await PlatformUserService.create_platform_user(
+        repository=repository,
+        global_repository=global_repository,
+        user_data=user_data,
+        actor=current_user,
+        mongodb_client=mongodb_client,
+        settings=settings,
+        business_id=business_id,
+        business_repository=business_repository,
+    )
+
+
+@platform_router.get(
+    "",
+    response_model=PaginatedResponse[UserResponseAudit],
+)
+async def list_platform_users(
+    page: int = Query(1, ge=1, description="Número de página"),
+    per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
+    q: str | None = Query(
+        None,
+        description="Búsqueda de texto en nombre, apellido, email o username",
+    ),
+    role: Role | None = Query(None, description="Filtrar por rol"),
+    status: UserStatus | None = Query(None, description="Filtrar por estado"),
+    business_id: PydanticObjectId | None = Query(
+        None,
+        description="Filtrar usuarios de un negocio específico",
+    ),
+    _: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.READ)
+    ),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Lista usuarios globalmente, con filtro opcional por negocio."""
+    return await PlatformUserService.list_platform_users(
+        repository=repository,
+        page=page,
+        per_page=per_page,
+        q=q,
+        role=role,
+        user_status=status,
+        business_id=business_id,
+    )
+
+
+@platform_router.get("/{user_id}", response_model=UserResponseAudit)
+async def get_platform_user(
+    user_id: PydanticObjectId,
+    _: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.READ)
+    ),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Obtiene cualquier usuario mediante el alcance global de plataforma."""
+    return await PlatformUserService.get_platform_user(
+        repository=repository,
+        user_id=user_id,
+    )
+
+
+@platform_router.patch("/{user_id}", response_model=UserResponseAudit)
+async def update_platform_user(
+    user_id: PydanticObjectId,
+    update_data: UserUpdate,
+    current_user: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.UPDATE)
+    ),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+    global_repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Actualiza administrativamente cualquier usuario autorizado."""
+    return await PlatformUserService.update_platform_user(
+        repository=repository,
+        global_repository=global_repository,
+        user_id=user_id,
+        update_data=update_data,
         actor=current_user,
     )
 
 
-@router.delete("/{user_id}")
-async def delete_user(
+@platform_router.post("/{user_id}/password")
+async def reset_platform_user_password(
     user_id: PydanticObjectId,
-    hard_delete: bool = Query(False, description="Eliminación permanente"),
-    current_user: CurrentUser = Depends(require_permission(Module.USERS, Action.DELETE)),
-    repository: TenantRepository[User] = Depends(get_user_repository),
+    body: AdminResetPassword,
+    current_user: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.UPDATE)
+    ),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
-    """Elimina un usuario."""
-    await UserService.delete_user(
+    """Restablece la contraseña de cualquier usuario autorizado."""
+    await PlatformUserService.reset_platform_user_password(
+        repository=repository,
+        user_id=user_id,
+        data=body,
+        actor=current_user,
+    )
+    return {"detail": "Contraseña restablecida exitosamente"}
+
+
+@platform_router.delete("/{user_id}")
+async def delete_platform_user(
+    user_id: PydanticObjectId,
+    current_user: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.DELETE)
+    ),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Realiza el borrado lógico de cualquier usuario autorizado."""
+    await PlatformUserService.delete_platform_user(
         repository=repository,
         user_id=user_id,
         actor=current_user,
-        hard_delete=hard_delete,
     )
     return {"detail": "Usuario eliminado exitosamente"}

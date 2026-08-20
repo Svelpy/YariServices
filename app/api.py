@@ -5,12 +5,16 @@ from app.domains.auth.routes import router as auth_router
 from app.domains.bussines.routes import router as business_router
 from app.domains.category.routes import router as category_router
 from app.domains.products.routes import router as product_router
-from app.domains.users.routes import router as users_router
+from app.domains.users.routes import platform_router as platform_users_router
+from app.domains.users.routes import tenant_router as tenant_users_router
+from app.domains.users.routes import me_router as me_users_router
 from app.middlewares.limiter import rate_limit_ip
 
 no_system_router = APIRouter(prefix="/api/v1")
 no_system_router.include_router(auth_router)
-no_system_router.include_router(users_router)
+no_system_router.include_router(me_users_router)
+no_system_router.include_router(platform_users_router)
+no_system_router.include_router(tenant_users_router)
 no_system_router.include_router(business_router)
 no_system_router.include_router(category_router)
 no_system_router.include_router(product_router)
