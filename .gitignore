@@ -72,6 +72,6 @@ ehthumbs.db
 *.sqlite3
 
 # Project Custom Ignores
-docs/
+
 
 AGENTS.md
