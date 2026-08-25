@@ -7,6 +7,7 @@ from app.domains.bussines import Business
 from app.domains.category import Category
 from app.domains.products import Product
 from app.domains.meta import Meta
+from app.domains.billing import Invoice, Payment, Plan, Subscription
 all_models = [
     ErrorLog,
     User,
@@ -14,6 +15,10 @@ all_models = [
     Category,
     Product,
     Meta,
+    Plan,
+    Subscription,
+    Invoice,
+    Payment,
     AuthSession,
     EmailVerificationToken,
 ]
