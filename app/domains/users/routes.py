@@ -28,6 +28,7 @@ from app.domains.users.schemas import (
     UserResponseAudit,
     UserSelfUpdate,
     UserUpdate,
+    UserCreationResponse,
 )
 from app.domains.users.services import (
     PlatformUserService,
@@ -41,11 +42,11 @@ platform_router = APIRouter(prefix="/platform/users",tags=["Platform Users Manag
 me_router = APIRouter(prefix="/me",tags=["My Profile"])
 
 # ---------------------------------------------------------------------------
-# RUTAS ADMINISTRATIVAS GENERALES
+# RUTAS para usuarios de tenants
 # ---------------------------------------------------------------------------
 
 
-@tenant_router.post("", response_model=UserResponseAudit, status_code=status.HTTP_201_CREATED)
+@tenant_router.post("", response_model=UserCreationResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
     current_user: CurrentUser = Depends(require_tenant_permission(Module.USERS, Action.CREATE)),
@@ -68,14 +69,11 @@ async def create_user(
 
 
 
-@tenant_router.get("", response_model=PaginatedResponse[UserResponseAudit])
+@tenant_router.get("", response_model=PaginatedResponse[UserResponse])
 async def list_users(
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
-    q: str | None = Query(
-        None,
-        description="Búsqueda de texto en nombre, apellido, email o username",
-    ),
+    q: str | None = Query(None,description="Búsqueda de texto en nombre, apellido, email o username"),
     role: Role | None = Query(None, description="Filtrar por rol"),
     status: UserStatus | None = Query(None, description="Filtrar por estado del usuario"),
     _: CurrentUser= Depends(require_tenant_permission(Module.USERS, Action.READ)),
@@ -92,66 +90,7 @@ async def list_users(
     )
 
 
-# ---------------------------------------------------------------------------
-# RUTAS DE AUTOGESTIÓN (/me)
-# ---------------------------------------------------------------------------
-
-
-@me_router.get("", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    """Obtiene la información del perfil autenticado."""
-    return current_user
-
-
-@me_router.patch("", response_model=UserResponse)
-async def update_profile(
-    data: UserSelfUpdate,
-    current_user: User = Depends(get_current_user),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Actualiza los datos personales del usuario autenticado."""
-    return await UserSelfService.update_my_profile(
-        repository=repository,
-        update_data=data,
-        actor=current_user,
-    )
-
-
-@me_router.post("/password")
-async def change_password(
-    data: PasswordSelfUpdate,
-    current_user: User = Depends(get_current_user),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Permite al usuario autenticado cambiar su contraseña."""
-    await UserSelfService.change_my_password(
-        repository=repository,
-        user=current_user,
-        data=data,
-    )
-    return {"detail": "Contraseña actualizada exitosamente"}
-
-
-@me_router.post("/avatar", response_model=UserResponse)
-async def update_avatar_self(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Permite al usuario autenticado subir o actualizar su avatar."""
-    return await UserSelfService.update_my_avatar(
-        repository=repository,
-        file=file,
-        actor=current_user,
-    )
-
-
-# ---------------------------------------------------------------------------
-# RUTAS ADMINISTRATIVAS SOBRE UN USUARIO ESPECÍFICO
-# ---------------------------------------------------------------------------
-
-
-@tenant_router.get("/{user_id}", response_model=UserResponseAudit)
+@tenant_router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: PydanticObjectId,
     _: CurrentUser= Depends(require_tenant_permission(Module.USERS, Action.READ)),
@@ -164,7 +103,7 @@ async def get_user(
     )
 
 
-@tenant_router.patch("/{user_id}", response_model=UserResponseAudit)
+@tenant_router.patch("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: PydanticObjectId,
     update_data: UserUpdate,
@@ -357,3 +296,55 @@ async def delete_platform_user(
         actor=current_user,
     )
     return {"detail": "Usuario eliminado exitosamente"}
+# ---------------------------------------------------------------------------
+# RUTAS DE AUTOGESTIÓN (/me)
+# ---------------------------------------------------------------------------
+
+
+@me_router.get("", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Obtiene la información del perfil autenticado."""
+    return current_user
+
+
+@me_router.patch("", response_model=UserResponse)
+async def update_profile(
+    data: UserSelfUpdate,
+    current_user: User = Depends(get_current_user),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Actualiza los datos personales del usuario autenticado."""
+    return await UserSelfService.update_my_profile(
+        repository=repository,
+        update_data=data,
+        actor=current_user,
+    )
+
+
+@me_router.post("/password")
+async def change_password(
+    data: PasswordSelfUpdate,
+    current_user: User = Depends(get_current_user),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Permite al usuario autenticado cambiar su contraseña."""
+    await UserSelfService.change_my_password(
+        repository=repository,
+        user=current_user,
+        data=data,
+    )
+    return {"detail": "Contraseña actualizada exitosamente"}
+
+
+@me_router.post("/avatar", response_model=UserResponse)
+async def update_avatar_self(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Permite al usuario autenticado subir o actualizar su avatar."""
+    return await UserSelfService.update_my_avatar(
+        repository=repository,
+        file=file,
+        actor=current_user,
+    )

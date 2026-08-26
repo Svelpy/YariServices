@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends,Header, Query, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-
+from pydantic import ValidationError
 from pymongo import AsyncMongoClient
 
 from app.core.config import Settings, get_settings
@@ -13,12 +13,15 @@ from app.domains.auth.schemas import (
     EmailVerificationResponse,
     UserLogin,
     TokenResponse,
+    RegistrationResponse,
 )
-from app.domains.auth.dependencies import require_roles
+from app.domains.auth.dependencies import require_platform_permission
 from app.domains.auth.services import AuthService
 from app.domains.bussines import BusinessRegistrationData
-from app.domains.users import UserRegistrationData, UserResponse
-from app.shared.enums import Role
+from app.domains.users import UserRegistrationData
+from app.shared.enums import Action, Module
+from app.shared.errors.codes import ErrorCode
+from app.shared.errors.exceptions import AppException
 from app.shared.schemas.errors import ErrorResponse
 from app.middlewares.limiter import (
     RateLimitService,
@@ -165,7 +168,7 @@ COOKIE_OPENAPI = {
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
-    response_model=UserResponse,
+    response_model=RegistrationResponse,
     summary="Registrar usuario y negocio",
     description=(
         "Crea un usuario propietario y su negocio. Requiere un access token "
@@ -180,13 +183,18 @@ COOKIE_OPENAPI = {
 async def register(
     user: UserRegistrationData,
     business: BusinessRegistrationData,
-    _: Annotated[CurrentUser,Depends(require_roles(Role.SUPERADMIN, Role.ADMIN))],
+    current_user: Annotated[CurrentUser,Depends(require_platform_permission(Module.BUSINESS, Action.CREATE))],  
     mongodb_client: Annotated[AsyncMongoClient,Depends(get_mongodb_client)],
     settings: Annotated[Settings,Depends(get_settings)],
 ):
     """Registra un propietario y crea su negocio."""
 
-    return await AuthService.register_self(user,business,mongodb_client,settings)
+    return await AuthService.register_self(        
+        user_data=user,
+        business_data=business,
+        actor=current_user,
+        mongodb_client=mongodb_client,
+        settings=settings,)
 
 @router.get(
     "/verify-email",
@@ -270,14 +278,23 @@ async def login(
     
     Emite un token JWT de acceso válido.
     """
-    email = form_data.username.strip().lower()
+    try:
+        credentials = UserLogin(email=form_data.username,password=form_data.password)
+    except ValidationError as error:
+        raise AppException(
+            "Los datos enviados no son válidos.",
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            ErrorCode.VALIDATION_ERROR,
+            {"username": error.errors()[0]["msg"]},
+        ) from error
+
+    email = str(credentials.email)
     await rate_limit_service.check(
         scope="email:login",
         identity=email,
         limit=settings.RATE_LIMIT_LOGIN_PER_MINUTE,
         window_seconds=60,
     )
-    credentials = UserLogin(email=email,password=form_data.password)
     tokens = await AuthService.login(credentials, settings)
     response.set_cookie(
         key=settings.REFRESH_TOKEN_COOKIE_NAME,

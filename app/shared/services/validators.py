@@ -1,4 +1,6 @@
 import re
+from datetime import datetime, timezone
+
 def validator_names(v: str | None) -> str | None:
     if v is None:
         return v
@@ -66,4 +68,14 @@ def validator_product_name(value: str) -> str:
             "El nombre del producto contiene caracteres no válidos."
         )
 
+    return value
+
+def validator_email(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("El email debe ser texto.")
+    return value.strip().lower()
+
+def validator_birth_date(value: datetime | None) -> datetime | None:
+    if value is not None and value.date() > datetime.now(timezone.utc).date():
+        raise ValueError("La fecha de nacimiento no puede ser futura.")
     return value

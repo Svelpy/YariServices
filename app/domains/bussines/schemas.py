@@ -30,17 +30,20 @@ class BusinessMeUpdate(BaseModel):
 
     @field_validator("name", mode="before")
     @classmethod
-    def validate_business_names(cls, value: str | None) -> str | None:
+    def validate_name(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("El nombre no puede ser null.")
         return validator_business_name(value)
 
     @field_validator("currency", mode="before")
     @classmethod
-    def validate_currency(cls, value: str | None) -> str | None:
+    def validate_currency(cls, value: str | None) -> str:
         if value is None:
-            return value
+            raise ValueError("La moneda no puede ser null.")
         return validator_currency(value)
 
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "name": "Adam Group Internacional",
@@ -59,6 +62,7 @@ class BusinessUpdate(BusinessMeUpdate):
     is_active: bool | None = None
 
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "name": "Adam Group Internacional",

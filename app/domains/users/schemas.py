@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from beanie import PydanticObjectId
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -9,6 +10,8 @@ from app.shared.services.validators import (
     validator_password,
     validator_phone,
     validator_username,
+    validator_email,
+    validator_birth_date,
 )
 
 
@@ -28,8 +31,14 @@ class UserRegistrationData(BaseModel):
     @classmethod
     def validate_password(cls, value: str) -> str:
         return validator_password(value)
+    
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return validator_email(value)
 
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "email": "usuario@adamgroup.com.bo",
@@ -50,12 +59,12 @@ class UserCreate(UserRegistrationData):
 
     role: Role = Role.USER
     
-    @field_validator("name", "lastname")
+    @field_validator("name", "lastname", mode="before")
     @classmethod
-    def validate_names(cls, value: str) -> str:
+    def validate_names(cls, value: str | None) -> str | None:
         return validator_names(value)
 
-    @field_validator("username")
+    @field_validator("username", mode="before")
     @classmethod
     def validate_username(cls, value: str | None) -> str | None:
         return validator_username(value)
@@ -64,7 +73,14 @@ class UserCreate(UserRegistrationData):
     @classmethod
     def validate_phone(cls, value: str | None) -> str | None:
         return validator_phone(value)
+
+    @field_validator("birth_date")
+    @classmethod
+    def validate_birth_date(cls,value: datetime | None) -> datetime | None:
+        return validator_birth_date(value)
+
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "email": "admin.creado@adamgroup.com.bo",
@@ -80,31 +96,39 @@ class UserCreate(UserRegistrationData):
     )
 
 
+
+
 class UserSelfUpdate(BaseModel):
     """Schema para actualizar datos del propio usuario."""
 
     name: str | None = Field(None, min_length=2, max_length=50)
     lastname: str | None = Field(None, min_length=2, max_length=100)
     username: str | None = Field(None, min_length=4, max_length=20)
-    phone_number: str | None = Field(None, min_length=5, max_length=15)
+    phone_number: str | None = Field(None, min_length=6, max_length=16)
     birth_date: datetime | None = None
 
-    @field_validator("name", "lastname")
+    @field_validator("name", "lastname", mode="before")
     @classmethod
-    def validate_names(cls, value: str) -> str:
+    def validate_names(cls, value: str | None) -> str | None:
         return validator_names(value)
 
-    @field_validator("username")
+    @field_validator("username", mode="before")
     @classmethod
     def validate_username(cls, value: str | None) -> str | None:
         return validator_username(value)
 
-    @field_validator("phone_number")
+    @field_validator("phone_number", mode="before")
     @classmethod
     def validate_phone(cls, value: str | None) -> str | None:
         return validator_phone(value)
 
+    @field_validator("birth_date")
+    @classmethod
+    def validate_birth_date(cls,value: datetime | None) -> datetime | None:
+        return validator_birth_date(value)
+
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "name": "María",
@@ -117,7 +141,7 @@ class UserSelfUpdate(BaseModel):
     )
     
 
-from typing import Literal
+
 AdministrativeUserStatus = Literal[UserStatus.ACTIVE,UserStatus.INACTIVE,UserStatus.SUSPENDED,UserStatus.BANNED]
 class UserUpdate(UserSelfUpdate):
     """Schema para actualizar un usuario desde una ruta administrativa."""
@@ -126,6 +150,7 @@ class UserUpdate(UserSelfUpdate):
     status: AdministrativeUserStatus | None = None
 
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "name": "María",
@@ -152,6 +177,7 @@ class AdminResetPassword(BaseModel):
         return validator_password(value)
 
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "new_password": "NuevaPass123",
@@ -166,6 +192,7 @@ class PasswordSelfUpdate(AdminResetPassword):
     current_password: str = Field(..., min_length=1)
 
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "current_password": "PassActual123",
@@ -173,6 +200,7 @@ class PasswordSelfUpdate(AdminResetPassword):
             }
         }
     )
+
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +284,7 @@ class UserResponseAudit(UserResponse):
             }
         },
     )
+class UserCreationResponse(BaseModel):
+    user: UserResponse
+    verification_email_sent: bool
+    message: str

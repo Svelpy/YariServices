@@ -8,7 +8,6 @@ from app.domains.auth.dependencies import (
     _get_token_claims,
     get_current_user,
     require_permission,
-    require_roles,
     resolve_authorized_business_id,
 )
 from app.domains.auth.schemas import TokenClaims

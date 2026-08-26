@@ -13,10 +13,11 @@ from app.shared.enums import Role, Module, Action
 #               (2) decidir qué rutas "sin business_id" están permitidas
 #                   (crear empresa, listar empresas, etc).
 PLATFORM_ROLES = {Role.SUPERADMIN, Role.ADMIN}
-BUSINESS_ROLES = {Role.PROPIETARIO,Role.GERENTE,Role.FINANZAS,Role.VENDEDOR,Role.ALMACEN,Role.USER,}
+STORE_ROLES = {Role.PROPIETARIO,Role.GERENTE,Role.FINANZAS,Role.VENDEDOR,Role.ALMACEN,Role.USER,}
 
 ALL_ACTIONS = {Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE}
 SIN_ELIMINAR = {Action.CREATE, Action.READ, Action.UPDATE}
+SIN_ELIMINAR_SIN_CREAR = {Action.READ, Action.UPDATE}
 SOLO_LECTURA = {Action.READ}
 
 # dict[Role, dict[Module, set[Action]]]
@@ -26,8 +27,8 @@ ROLE_PERMISSIONS: dict[Role, dict[Module, set[Action]]] = {
 
     Role.SUPERADMIN: {Module.USERS: ALL_ACTIONS,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,Module.BUSINESS: ALL_ACTIONS,},
     Role.ADMIN: {Module.USERS: SIN_ELIMINAR,Module.CATEGORY: SIN_ELIMINAR,Module.PRODUCTS: SIN_ELIMINAR,Module.BUSINESS:SIN_ELIMINAR},
-    Role.PROPIETARIO: {Module.USERS: ALL_ACTIONS,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,},
-    Role.GERENTE: {Module.USERS: SIN_ELIMINAR,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,},
+    Role.PROPIETARIO: {Module.USERS: ALL_ACTIONS,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,Module.BUSINESS:SIN_ELIMINAR_SIN_CREAR},
+    Role.GERENTE: {Module.USERS: SIN_ELIMINAR,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,Module.BUSINESS:SIN_ELIMINAR_SIN_CREAR},
 
     #Role.FINANZAS: {},
     #Role.VENDEDOR: {},

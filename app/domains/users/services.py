@@ -32,6 +32,7 @@ from app.domains.users.schemas import (
     UserCreate,
     UserSelfUpdate,
     UserUpdate,
+    UserCreationResponse,
 )
 
 
@@ -55,7 +56,7 @@ class TenantUserService:
 
     @staticmethod
     def _check_tenant_hierarchy(actor: CurrentUser, target: User) -> None:
-        """Valida jerarquía estricta y aislamiento de tenant."""
+        """Valida jerarquía estricta."""
 
         actor_level = TenantUserService.ROLE_HIERARCHY.get(actor.role, 99)
         target_level = TenantUserService.ROLE_HIERARCHY.get(target.role, 99)
@@ -84,23 +85,19 @@ class TenantUserService:
         actor: CurrentUser,
         mongodb_client: AsyncMongoClient,
         settings: Settings,
-    ) -> User:
-        """Crea un usuario, su token y env?a el correo de verificaci?n."""
+    ) -> UserCreationResponse:
+        """Crea un usuario, su token y envía el correo de verificación."""
         from app.domains.auth.services import AuthService
 
         now = datetime.now(timezone.utc)
 
-        async def create_user_and_token(
-            session: AsyncClientSession,
-        ) -> tuple[User, str]:
+        async def create_user_and_token(session: AsyncClientSession) -> tuple[User, str]:
+
             actor_level = TenantUserService.ROLE_HIERARCHY.get(actor.role, 99)
             target_level = TenantUserService.ROLE_HIERARCHY.get(user_data.role, 99)
 
             if actor_level >= target_level:
-                raise AppException(
-                    "No tienes permisos para crear un usuario con este rol",
-                    403,
-                )
+                raise AppException("No tienes permisos para crear un usuario con este rol",403)
 
             username = None
             if user_data.username:
@@ -108,16 +105,12 @@ class TenantUserService:
                 if cleaned_username:
                     username = cleaned_username
 
-            existing_user = await global_repository.find_one(
-                {"email": user_data.email}
-            )
+            existing_user = await global_repository.find_one({"email": user_data.email})
             if existing_user:
                 raise AppException("El email ya está registrado.", 409)
 
             if username:
-                existing_username = await global_repository.find_one(
-                    {"username": username}
-                )
+                existing_username = await global_repository.find_one({"username": username})
                 if existing_username:
                     raise AppException("El username ya está en uso.", 409)
 
@@ -137,38 +130,38 @@ class TenantUserService:
                 created_by=actor.id,
                 updated_by=actor.id,
             )
-
-            # TenantRepository fuerza el business_id del contexto autorizado.
             created_user = await repository.create(new_user, session=session)
 
             verification_token_value = create_one_time_token()
             verification_token = EmailVerificationToken(
                 user_id=created_user.id,
                 token_hash=hash_one_time_token(verification_token_value),
-                expires_at=now + timedelta(
-                    hours=AuthService.VERIFICATION_TOKEN_EXPIRE_HOURS
-                ),
+                expires_at=now + timedelta(hours=AuthService.VERIFICATION_TOKEN_EXPIRE_HOURS),
             )
             await verification_token.insert(session=session)
             return created_user, verification_token_value
 
         try:
             async with mongodb_client.start_session() as session:
-                created_user, verification_token_value = (
-                    await session.with_transaction(create_user_and_token)
-                )
+                created_user, verification_token_value = (await session.with_transaction(create_user_and_token))
         except DuplicateKeyError as error:
-            raise AppException(
-                "El email o username ya est? registrado.",
-                409,
-            ) from error
-
-        await AuthService._deliver_verification_email(
-            email=str(created_user.email),
-            token_value=verification_token_value,
-            settings=settings,
+            raise AppException("El email o username ya está registrado.",409) from error
+        
+        verification_email_sent = True
+        try:
+            await AuthService.deliver_verification_email(
+                email=str(created_user.email),
+                token_value=verification_token_value,
+                settings=settings,
+            )
+        except Exception:
+            verification_email_sent = False
+        return UserCreationResponse(
+            user=created_user,
+            verification_email_sent=verification_email_sent,
+            message=("Usuario creado y correo de verificación enviado."if verification_email_sent
+            else "Usuario creado, pero no se pudo enviar el correo."),
         )
-        return created_user
 
     @staticmethod
     async def list_tenant_users(
@@ -252,10 +245,7 @@ class TenantUserService:
             actor_level = TenantUserService.ROLE_HIERARCHY.get(actor.role, 99)
             proposed_level = TenantUserService.ROLE_HIERARCHY.get(proposed_role, 99)
             if actor_level >= proposed_level:
-                raise AppException(
-                    "No tienes permisos para asignar este rol al usuario",
-                    403,
-                )
+                raise AppException("No tienes permisos para asignar este rol al usuario",403)
 
         for key, value in update_dict.items():
             setattr(user, key, value)
@@ -264,7 +254,7 @@ class TenantUserService:
         saved_user = await repository.save(user)
 
         if ("status" in update_dict and user.status != UserStatus.ACTIVE):
-            await AuthSession.revoke_for_user(user.id,"user_status_changed")
+            await AuthSession.revoke_for_user(user.id,"user_status_changed_by_tenant")
         return saved_user
 
     @staticmethod
@@ -281,7 +271,7 @@ class TenantUserService:
         user.password_hash = hash_password(data.new_password)
         user.updated_by = actor.id
         await repository.save(user)
-        await AuthSession.revoke_for_user(user.id,"admin_password_reset")
+        await AuthSession.revoke_for_user(user.id,"password_reset_by_tenant")
 
     @staticmethod
     async def delete_tenant_user(
@@ -290,18 +280,10 @@ class TenantUserService:
         actor: CurrentUser,
     ) -> None:
         """
-        Elimina un usuario:
-        - ADMIN → Soft delete.
-        - SUPERADMIN → Hard delete físico.
+        Elimina un usuario: soft delete.
         """
-        if actor.business_id is None:
-            raise AppException("Solo los usuarios tenant pueden eliminar usuarios.",403)
 
         user = await TenantUserService._get_active_tenant_user(repository, user_id)
-
-        if user.business_id != actor.business_id:
-            raise AppException("No tienes permisos para eliminar usuarios de otra empresa.",403)
-
         TenantUserService._check_tenant_hierarchy(actor, user)
 
         user.is_deleted = True
@@ -310,7 +292,7 @@ class TenantUserService:
         user.updated_by = actor.id
 
         await repository.save(user)
-        await AuthSession.revoke_for_user(user.id,"user_deleted")
+        await AuthSession.revoke_for_user(user.id,"user_deleted_by_tenant")
 
 
 
@@ -392,38 +374,24 @@ class PlatformUserService:
 
     ROLE_HIERARCHY = TenantUserService.ROLE_HIERARCHY
 
-    @staticmethod
-    def _check_platform_actor(actor: CurrentUser) -> None:
-        if actor.role not in PLATFORM_ROLES:
-            raise AppException(
-                "Solo los usuarios de plataforma pueden realizar esta operación.",
-                403,
-            )
 
     @staticmethod
     def _check_platform_hierarchy(actor: CurrentUser, target: User) -> None:
-        PlatformUserService._check_platform_actor(actor)
-
         actor_level = PlatformUserService.ROLE_HIERARCHY.get(actor.role, 99)
         target_level = PlatformUserService.ROLE_HIERARCHY.get(target.role, 99)
-
         if actor_level >= target_level:
-            raise AppException(
-                "No tienes permisos para gestionar a este usuario",
-                403,
-            )
+            raise AppException("No tienes permisos para gestionar a este usuario",403)
 
     @staticmethod
-    async def _get_active_platform_user(
-        repository: BaseRepository[User],
-        user_id: PydanticObjectId,
-    ) -> User:
+    async def _get_active_platform_user(repository: BaseRepository[User],user_id: PydanticObjectId) -> User:
         """Obtiene un usuario activo desde el repositorio global."""
         user = await repository.get(user_id)
         if not user:
             raise AppException("Usuario no existente", 404)
         if user.is_deleted:
             raise AppException("Usuario eliminado", 404)
+        if user.status != UserStatus.ACTIVE:
+            raise AppException("Usuario inactivo", 403)
         return user
 
     @staticmethod
@@ -438,9 +406,8 @@ class PlatformUserService:
         business_repository: BaseRepository[Business] | None = None,
     ) -> User:
         """Crea un usuario global o asociado a un negocio seleccionado."""
-        from app.domains.auth.services import AuthService
+        
 
-        PlatformUserService._check_platform_actor(actor)
 
         if business_id is not None:
             if business_repository is None:
@@ -525,7 +492,7 @@ class PlatformUserService:
                 409,
             ) from error
 
-        await AuthService._deliver_verification_email(
+        await AuthService.deliver_verification_email(
             email=str(created_user.email),
             token_value=verification_token_value,
             settings=settings,

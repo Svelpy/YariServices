@@ -7,7 +7,7 @@ from pymongo import AsyncMongoClient
 from pymongo.errors import DuplicateKeyError
 from pymongo.asynchronous.client_session import AsyncClientSession
 from app.domains.auth.models import AuthSession, EmailVerificationToken
-from app.domains.auth.schemas import AuthTokens, UserLogin
+from app.domains.auth.schemas import AuthTokens, UserLogin, RegistrationResponse, CurrentUser
 from app.domains.users import User, UserRegistrationData
 from app.domains.bussines import Business, BusinessRegistrationData
 from app.core.security import (
@@ -25,7 +25,7 @@ from app.core.security import (
 from urllib.parse import urlencode
 from app.integrations.resend import ResendService
 from app.core.config import Settings
-from app.shared.enums import AuthProvider, BillingStatus, Role, UserStatus
+from app.shared.enums import AuthProvider, Role, UserStatus
 from app.shared.services.slug import generate_slug
 
 class AuthService:
@@ -54,15 +54,11 @@ class AuthService:
         if not business.is_active:
             raise AppException("El negocio esta inactivo.", 403, ErrorCode.PERMISSION_DENIED)
 
-        if business.billing_status == BillingStatus.SUSPENDED:
-            raise AppException("El acceso esta suspendido por falta de pago.", 403, ErrorCode.PERMISSION_DENIED)
 
-        if business.billing_status == BillingStatus.CANCELED:
-            raise AppException("La suscripcion del negocio esta cancelada.", 403, ErrorCode.PERMISSION_DENIED)
 
 
     @staticmethod
-    async def _deliver_verification_email(
+    async def deliver_verification_email(
         email: str,
         token_value: str,
         settings: Settings,
@@ -100,9 +96,10 @@ class AuthService:
     async def register_self(
         user_data: UserRegistrationData,
         business_data: BusinessRegistrationData,
+        actor: CurrentUser,
         mongodb_client: AsyncMongoClient,
         settings: Settings,
-    ) -> User:
+    ) -> RegistrationResponse:
         """Registra un propietario y crea su negocio."""
         existing_user = await User.find_one(User.email == user_data.email)
         if existing_user:
@@ -125,8 +122,7 @@ class AuthService:
             new_business = Business(
                 name=business_data.name,
                 slug=business_slug,
-                plan_started_at=now,
-                plan_expires_at=now + timedelta(days=30),
+                created_by=actor.id
             )
             await new_business.insert(session=session)
 
@@ -138,6 +134,7 @@ class AuthService:
                 status=UserStatus.PENDING_VERIFICATION,
                 email_verified=False,
                 auth_provider=AuthProvider.LOCAL,
+                created_by=actor.id,
             )
             await created_user.insert(session=session)
 
@@ -156,12 +153,26 @@ class AuthService:
         except DuplicateKeyError as error:
             raise AppException("El email, username o negocio ya está registrado.", 409, ErrorCode.CONFLICT) from error
 
-        await AuthService._deliver_verification_email(
-            email=str(created_user.email),
-            token_value=verification_token_value,
-            settings=settings,
+        verification_email_sent = True
+        try:
+            await AuthService.deliver_verification_email(
+                email=str(created_user.email),
+                token_value=verification_token_value,
+                settings=settings,
+            )
+        except Exception:
+            verification_email_sent = False
+        return RegistrationResponse(
+            user_id=created_user.id,
+            business_id=created_user.business_id,
+            email=created_user.email,
+            verification_email_sent=verification_email_sent,
+            message=(
+                "Registro creado y correo de verificación enviado."
+                if verification_email_sent
+                else "Registro creado, pero no se pudo enviar el correo."
+            ),
         )
-        return created_user
     
 
 
@@ -267,7 +278,7 @@ class AuthService:
         verification_token_value, verification_email = result
 
 
-        await AuthService._deliver_verification_email(
+        await AuthService.deliver_verification_email(
             email=verification_email,
             token_value=verification_token_value,
             settings=settings,

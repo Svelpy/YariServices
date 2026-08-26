@@ -4,41 +4,25 @@ from datetime import datetime, timezone
 from typing import Any
 
 from beanie import PydanticObjectId
+from fastapi import UploadFile
 
 from app.core.repositories import BaseRepository
-from app.domains.bussines.models import Business
-from app.domains.bussines.schemas import BusinessMeUpdate, BusinessUpdate
-from app.domains.auth import CurrentUser
 from app.shared.enums import Role
 from app.shared.errors.exceptions import AppException
 from app.shared.services.slug import generate_slug
+from app.integrations.cloudinary import CloudinaryService
+from app.domains.auth import CurrentUser
+from app.domains.bussines.models import Business
+from app.domains.bussines.schemas import BusinessMeUpdate, BusinessUpdate
 
 
 class BusinessService:
 
     @staticmethod
-    async def get_business(
-        repository: BaseRepository[Business],
-        business_id: PydanticObjectId,
-    ) -> Business:
+    async def get_business(repository: BaseRepository[Business],business_id: PydanticObjectId) -> Business:
         business = await repository.get(business_id)
         if not business or business.is_deleted:
             raise AppException("Empresa no existente.", 404)
-        return business
-
-    @staticmethod
-    async def get_business_by_slug(
-        repository: BaseRepository[Business],
-        slug: str,
-    ) -> Business:
-        business = await repository.find_one(
-            {
-                "slug": slug,
-                "is_deleted": False,
-            }
-        )
-        if not business:
-            raise AppException("Empresa no encontrada.", 404)
         return business
 
     @staticmethod
@@ -95,10 +79,7 @@ class BusinessService:
         if "name" in update_dict and update_dict["name"] != business.name:
             new_slug = generate_slug(update_dict["name"])
             if not new_slug:
-                raise AppException(
-                    "El nombre proporcionado no genera un slug válido.",
-                    400,
-                )
+                raise AppException("El nombre proporcionado no genera un slug válido.",400)
 
             existing_slug = await repository.find_one(
                 {
@@ -108,10 +89,7 @@ class BusinessService:
                 }
             )
             if existing_slug:
-                raise AppException(
-                    f"El slug '{new_slug}' ya está registrado para otra empresa.",
-                    409,
-                )
+                raise AppException(f"El slug '{new_slug}' ya está registrado para otra empresa.",409)
             update_dict["slug"] = new_slug
 
         for key, value in update_dict.items():
@@ -146,10 +124,7 @@ class BusinessService:
     ) -> None:
         """Elimina una empresa de forma lógica o permanente."""
         if hard_delete and actor.role != Role.SUPERADMIN:
-            raise AppException(
-                "Solo un SUPERADMIN puede realizar un borrado permanente.",
-                403,
-            )
+            raise AppException("Solo un SUPERADMIN puede realizar un borrado permanente.",403)
 
         business = await BusinessService.get_business(repository, business_id)
 
@@ -166,3 +141,44 @@ class BusinessService:
         business.deleted_by = actor.id
         business.updated_by = actor.id
         await repository.save(business)
+
+    @staticmethod
+    async def update_business_logo(
+        repository: BaseRepository[Business],
+        business_id: PydanticObjectId,
+        file: UploadFile,
+        actor: CurrentUser,
+    ) -> Business:
+        business = await BusinessService.get_business(repository, business_id)
+
+        old_logo_url = business.logo_url
+        new_logo_url = await CloudinaryService.upload_image(
+            file,
+            folder="businesses",
+        )
+
+        business.logo_url = new_logo_url
+        business.updated_by = actor.id
+
+        business = await repository.save(business)
+
+        if old_logo_url:
+            await CloudinaryService.delete_image(old_logo_url)
+
+        return business
+
+    @staticmethod
+    async def update_my_business_logo(
+        repository: BaseRepository[Business],
+        file: UploadFile,
+        actor: CurrentUser,
+    ) -> Business:
+        if actor.business_id is None:
+            raise AppException("El usuario no tiene una empresa asignada.", 404)
+
+        return await BusinessService.update_business_logo(
+            repository=repository,
+            business_id=actor.business_id,
+            file=file,
+            actor=actor,
+        )

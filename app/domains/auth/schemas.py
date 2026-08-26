@@ -1,21 +1,21 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
+
 from beanie import PydanticObjectId
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
 from app.shared.enums import Role
+from app.shared.services.validators import validator_email 
+
 
 class UserLogin(BaseModel):
     """Schema de entrada para login con email y contraseña"""
     email: EmailStr
     password: str
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "email": "usuario@adamgroup.com.bo",
-                "password": "Passw0rd123",
-            }
-        }
-    )
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return validator_email(value)
 
 
 class TokenResponse(BaseModel):
@@ -54,9 +54,21 @@ class TokenClaims(BaseModel):
 class EmailVerificationResponse(BaseModel):
     message: str
 
+class RegistrationResponse(BaseModel):
+    user_id: PydanticObjectId
+    business_id: PydanticObjectId
+    email: EmailStr
+    verification_email_sent: bool
+    message: str
+
 
 class EmailVerificationRequest(BaseModel):
     email: EmailStr
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return validator_email(value)
 
     model_config = ConfigDict(
         json_schema_extra={

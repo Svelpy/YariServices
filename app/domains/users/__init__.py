@@ -8,6 +8,7 @@ from app.domains.users.schemas import (
     UserResponseAudit,
     UserSelfUpdate,
     UserUpdate,
+    UserCreationResponse,
 )
 from app.domains.users.services import (
     PlatformUserService,
@@ -19,6 +20,7 @@ __all__ = [
     "User",
     "UserRegistrationData",
     "UserCreate",
+    "UserCreationResponse",
     "UserSelfUpdate",
     "UserUpdate",
     "AdminResetPassword",
