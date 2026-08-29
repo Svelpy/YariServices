@@ -152,150 +152,6 @@ async def delete_user(
     )
     return {"detail": "Usuario eliminado exitosamente"}
 
-
-# ---------------------------------------------------------------------------
-# RUTAS ADMINISTRATIVAS DE PLATAFORMA
-# ---------------------------------------------------------------------------
-
-
-@platform_router.post(
-    "",
-    response_model=UserResponseAudit,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_platform_user(
-    user_data: UserCreate,
-    business_id: PydanticObjectId | None = Query(
-        None,
-        description=(
-            "Negocio objetivo. Si se omite, se crea un usuario de plataforma."
-        ),
-    ),
-    current_user: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.CREATE)
-    ),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-    global_repository: BaseRepository[User] = Depends(get_global_user_repository),
-    business_repository: BaseRepository[Business] = Depends(get_business_repository),
-    mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
-    settings: Settings = Depends(get_settings),
-):
-    """Crea un usuario de plataforma o de un negocio seleccionado."""
-    return await PlatformUserService.create_platform_user(
-        repository=repository,
-        global_repository=global_repository,
-        user_data=user_data,
-        actor=current_user,
-        mongodb_client=mongodb_client,
-        settings=settings,
-        business_id=business_id,
-        business_repository=business_repository,
-    )
-
-
-@platform_router.get(
-    "",
-    response_model=PaginatedResponse[UserResponseAudit],
-)
-async def list_platform_users(
-    page: int = Query(1, ge=1, description="Número de página"),
-    per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
-    q: str | None = Query(
-        None,
-        description="Búsqueda de texto en nombre, apellido, email o username",
-    ),
-    role: Role | None = Query(None, description="Filtrar por rol"),
-    status: UserStatus | None = Query(None, description="Filtrar por estado"),
-    business_id: PydanticObjectId | None = Query(
-        None,
-        description="Filtrar usuarios de un negocio específico",
-    ),
-    _: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.READ)
-    ),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Lista usuarios globalmente, con filtro opcional por negocio."""
-    return await PlatformUserService.list_platform_users(
-        repository=repository,
-        page=page,
-        per_page=per_page,
-        q=q,
-        role=role,
-        user_status=status,
-        business_id=business_id,
-    )
-
-
-@platform_router.get("/{user_id}", response_model=UserResponseAudit)
-async def get_platform_user(
-    user_id: PydanticObjectId,
-    _: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.READ)
-    ),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Obtiene cualquier usuario mediante el alcance global de plataforma."""
-    return await PlatformUserService.get_platform_user(
-        repository=repository,
-        user_id=user_id,
-    )
-
-
-@platform_router.patch("/{user_id}", response_model=UserResponseAudit)
-async def update_platform_user(
-    user_id: PydanticObjectId,
-    update_data: UserUpdate,
-    current_user: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.UPDATE)
-    ),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-    global_repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Actualiza administrativamente cualquier usuario autorizado."""
-    return await PlatformUserService.update_platform_user(
-        repository=repository,
-        global_repository=global_repository,
-        user_id=user_id,
-        update_data=update_data,
-        actor=current_user,
-    )
-
-
-@platform_router.post("/{user_id}/password")
-async def reset_platform_user_password(
-    user_id: PydanticObjectId,
-    body: AdminResetPassword,
-    current_user: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.UPDATE)
-    ),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Restablece la contraseña de cualquier usuario autorizado."""
-    await PlatformUserService.reset_platform_user_password(
-        repository=repository,
-        user_id=user_id,
-        data=body,
-        actor=current_user,
-    )
-    return {"detail": "Contraseña restablecida exitosamente"}
-
-
-@platform_router.delete("/{user_id}")
-async def delete_platform_user(
-    user_id: PydanticObjectId,
-    current_user: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.DELETE)
-    ),
-    repository: BaseRepository[User] = Depends(get_global_user_repository),
-):
-    """Realiza el borrado lógico de cualquier usuario autorizado."""
-    await PlatformUserService.delete_platform_user(
-        repository=repository,
-        user_id=user_id,
-        actor=current_user,
-    )
-    return {"detail": "Usuario eliminado exitosamente"}
 # ---------------------------------------------------------------------------
 # RUTAS DE AUTOGESTIÓN (/me)
 # ---------------------------------------------------------------------------
@@ -348,3 +204,122 @@ async def update_avatar_self(
         file=file,
         actor=current_user,
     )
+
+# ---------------------------------------------------------------------------
+# RUTAS ADMINISTRATIVAS DE PLATAFORMA
+# ---------------------------------------------------------------------------
+
+
+@platform_router.post(
+    "",
+    response_model=UserCreationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_platform_user(
+    user_data: UserCreate,
+    is_platform:bool= Query(True,description="Indica si se crea un usuario de plataforma."),
+    business_id: PydanticObjectId | None = Query(None,description="Negocio objetivo. Solo necesario si is_platform es False."),
+    current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.CREATE)),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+    global_repository: BaseRepository[User] = Depends(get_global_user_repository),
+    business_repository: BaseRepository[Business] = Depends(get_business_repository),
+    mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
+    settings: Settings = Depends(get_settings),
+):
+    """Crea un usuario de plataforma o de un negocio seleccionado."""
+    return await PlatformUserService.create_platform_user(
+        repository=repository,
+        global_repository=global_repository,
+        user_data=user_data,
+        actor=current_user,
+        mongodb_client=mongodb_client,
+        settings=settings,
+        business_id=business_id,
+        business_repository=business_repository,
+        is_platform=is_platform,
+    )
+
+
+@platform_router.get("",response_model=PaginatedResponse[UserResponseAudit])
+async def list_platform_users(
+    page: int = Query(1, ge=1, description="Número de página"),
+    per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
+    q: str | None = Query(None,description="Búsqueda de texto en nombre, apellido, email o username"),
+    role: Role | None = Query(None, description="Filtrar por rol"),
+    status: UserStatus | None = Query(None, description="Filtrar por estado"),
+    business_id: PydanticObjectId | None = Query(None,description="Filtrar usuarios de un negocio específico"),
+    _: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.READ)),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Lista usuarios globalmente, con filtro opcional por negocio."""
+    return await PlatformUserService.list_platform_users(
+        repository=repository,
+        page=page,
+        per_page=per_page,
+        q=q,
+        role=role,
+        user_status=status,
+        business_id=business_id,
+    )
+
+
+@platform_router.get("/{user_id}", response_model=UserResponseAudit)
+async def get_platform_user(
+    user_id: PydanticObjectId,
+    _: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.READ)),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Obtiene cualquier usuario mediante el alcance global de plataforma."""
+    return await PlatformUserService.get_platform_user(repository=repository,user_id=user_id)
+
+
+@platform_router.patch("/{user_id}", response_model=UserResponseAudit)
+async def update_platform_user(
+    user_id: PydanticObjectId,
+    update_data: UserUpdate,
+    current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.UPDATE)),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+    global_repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Actualiza administrativamente cualquier usuario autorizado."""
+    return await PlatformUserService.update_platform_user(
+        repository=repository,
+        global_repository=global_repository,
+        user_id=user_id,
+        update_data=update_data,
+        actor=current_user,
+    )
+
+
+@platform_router.post("/{user_id}/password")
+async def reset_platform_user_password(
+    user_id: PydanticObjectId,
+    body: AdminResetPassword,
+    current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.UPDATE)),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+):
+    """Restablece la contraseña de cualquier usuario autorizado."""
+    await PlatformUserService.reset_platform_user_password(
+        repository=repository,
+        user_id=user_id,
+        data=body,
+        actor=current_user,
+    )
+    return {"detail": "Contraseña restablecida exitosamente"}
+
+
+@platform_router.delete("/{user_id}")
+async def delete_platform_user(
+    user_id: PydanticObjectId,
+    current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.DELETE)),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
+    hard_delete: bool = Query(False, description="Realiza el borrado físico del usuario"),
+):
+    """Realiza el borrado lógico o físico de cualquier usuario autorizado."""
+    await PlatformUserService.delete_platform_user(
+        repository=repository,
+        user_id=user_id,
+        hard_delete=hard_delete,
+        actor=current_user,
+    )
+    return {"detail": "Usuario eliminado exitosamente"}

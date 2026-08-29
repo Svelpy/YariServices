@@ -57,7 +57,7 @@ class UserCreate(UserRegistrationData):
     phone_number: str | None = Field(None, min_length=6, max_length=16)
     birth_date: datetime | None = None
 
-    role: Role = Role.USER
+    role: Role 
     
     @field_validator("name", "lastname", mode="before")
     @classmethod
@@ -285,6 +285,7 @@ class UserResponseAudit(UserResponse):
         },
     )
 class UserCreationResponse(BaseModel):
-    user: UserResponse
+    user: UserResponse | UserResponseAudit
+    email: EmailStr
     verification_email_sent: bool
     message: str

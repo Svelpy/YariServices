@@ -25,7 +25,7 @@ class User(BaseDocument):
     
     #Campos para validar en cada consulta   
     email_verified: bool = False
-    status: UserStatus = UserStatus.ACTIVE
+    status: UserStatus = UserStatus.PENDING_VERIFICATION
     class Settings:
         name = "users" 
         indexes = [

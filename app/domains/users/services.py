@@ -22,7 +22,7 @@ from app.core.security import (
 )
 from app.shared.enums import AuthProvider, Role, UserStatus
 from app.shared.errors.exceptions import AppException
-from app.shared.services.permissions import PLATFORM_ROLES
+from app.shared.services.permissions import PLATFORM_ROLES, STORE_ROLES
 from app.integrations.cloudinary import CloudinaryService
 from app.domains.bussines.models import Business
 from app.domains.users.models import User
@@ -33,6 +33,8 @@ from app.domains.users.schemas import (
     UserSelfUpdate,
     UserUpdate,
     UserCreationResponse,
+    UserResponse,
+    UserResponseAudit,
 )
 
 
@@ -157,10 +159,11 @@ class TenantUserService:
         except Exception:
             verification_email_sent = False
         return UserCreationResponse(
-            user=created_user,
+            user=UserResponse.model_validate(created_user),
+            email=created_user.email,
             verification_email_sent=verification_email_sent,
-            message=("Usuario creado y correo de verificación enviado."if verification_email_sent
-            else "Usuario creado, pero no se pudo enviar el correo."),
+            message="Usuario creado y correo de verificación enviado."if verification_email_sent
+            else "Usuario creado, pero no se pudo enviar el correo.",
         )
 
     @staticmethod
@@ -353,10 +356,7 @@ class UserSelfService:
         data: PasswordSelfUpdate,
     ) -> None:
         """Cambia la contraseña del usuario autenticado."""
-        if not user.password_hash or not verify_password(
-            data.current_password,
-            user.password_hash,
-        ):
+        if not user.password_hash or not verify_password(data.current_password,user.password_hash):
             raise AppException("Contraseña actual incorrecta", 401)
 
         user.password_hash = hash_password(data.new_password)
@@ -390,8 +390,6 @@ class PlatformUserService:
             raise AppException("Usuario no existente", 404)
         if user.is_deleted:
             raise AppException("Usuario eliminado", 404)
-        if user.status != UserStatus.ACTIVE:
-            raise AppException("Usuario inactivo", 403)
         return user
 
     @staticmethod
@@ -404,12 +402,26 @@ class PlatformUserService:
         settings: Settings,
         business_id: PydanticObjectId | None = None,
         business_repository: BaseRepository[Business] | None = None,
-    ) -> User:
+        is_platform:bool = True,
+    ) -> UserCreationResponse:
         """Crea un usuario global o asociado a un negocio seleccionado."""
-        
+        from app.domains.auth.services import AuthService
 
 
-        if business_id is not None:
+        if is_platform:
+            if business_id is not None:
+                raise AppException("Un usuario de plataforma no puede tener business_id.",400)
+
+            if user_data.role not in PLATFORM_ROLES:
+                raise AppException("Un usuario de plataforma debe tener roles de plataforma.",400)
+
+        else:
+            if business_id is None:
+                raise AppException("business_id es obligatorio para un usuario de negocio.",400)
+
+            if user_data.role not in STORE_ROLES:
+                raise AppException("El usuario de negocio debe tener un rol tenant.",400)
+
             if business_repository is None:
                 raise AppException("Repositorio de negocio requerido.", 500)
 
@@ -419,17 +431,12 @@ class PlatformUserService:
 
         now = datetime.now(timezone.utc)
 
-        async def create_user_and_token(
-            session: AsyncClientSession,
-        ) -> tuple[User, str]:
+        async def create_user_and_token(session: AsyncClientSession) -> tuple[User, str]:
             actor_level = PlatformUserService.ROLE_HIERARCHY.get(actor.role, 99)
             target_level = PlatformUserService.ROLE_HIERARCHY.get(user_data.role, 99)
 
             if actor_level >= target_level:
-                raise AppException(
-                    "No tienes permisos para crear un usuario con este rol",
-                    403,
-                )
+                raise AppException("No tienes permisos para crear un usuario con este rol",403)
 
             username = None
             if user_data.username:
@@ -437,16 +444,12 @@ class PlatformUserService:
                 if cleaned_username:
                     username = cleaned_username
 
-            existing_user = await global_repository.find_one(
-                {"email": user_data.email}
-            )
+            existing_user = await global_repository.find_one({"email": user_data.email})
             if existing_user:
                 raise AppException("El email ya está registrado.", 409)
 
             if username:
-                existing_username = await global_repository.find_one(
-                    {"username": username}
-                )
+                existing_username = await global_repository.find_one({"username": username})
                 if existing_username:
                     raise AppException("El username ya está en uso.", 409)
 
@@ -463,7 +466,7 @@ class PlatformUserService:
                 avatar_url=None,
                 phone_number=user_data.phone_number,
                 birth_date=user_data.birth_date,
-                business_id=business_id,
+                business_id=None if is_platform else business_id,
                 created_by=actor.id,
                 updated_by=actor.id,
             )
@@ -474,30 +477,35 @@ class PlatformUserService:
             verification_token = EmailVerificationToken(
                 user_id=created_user.id,
                 token_hash=hash_one_time_token(verification_token_value),
-                expires_at=now + timedelta(
-                    hours=AuthService.VERIFICATION_TOKEN_EXPIRE_HOURS
-                ),
-            )
+                expires_at=now + timedelta(hours=AuthService.VERIFICATION_TOKEN_EXPIRE_HOURS))
+            
             await verification_token.insert(session=session)
+            
             return created_user, verification_token_value
 
         try:
             async with mongodb_client.start_session() as session:
-                created_user, verification_token_value = (
-                    await session.with_transaction(create_user_and_token)
-                )
+                created_user, verification_token_value = (await session.with_transaction(create_user_and_token))
         except DuplicateKeyError as error:
-            raise AppException(
-                "El email o username ya está registrado.",
-                409,
-            ) from error
-
-        await AuthService.deliver_verification_email(
-            email=str(created_user.email),
-            token_value=verification_token_value,
-            settings=settings,
+            raise AppException("El email o username ya está registrado.",409) from error
+        
+        verification_email_sent = True
+        try:
+            await AuthService.deliver_verification_email(
+                email=str(created_user.email),
+                token_value=verification_token_value,
+                settings=settings,
+            )
+        except Exception:
+            verification_email_sent = False
+        
+        return UserCreationResponse(
+            user=UserResponseAudit.model_validate(created_user),
+            email=created_user.email,
+            verification_email_sent=verification_email_sent,
+            message="Usuario creado y correo de verificación enviado."if verification_email_sent
+            else "Usuario creado, pero no se pudo enviar el correo.",
         )
-        return created_user
 
     @staticmethod
     async def list_platform_users(
@@ -554,10 +562,7 @@ class PlatformUserService:
         user_id: PydanticObjectId,
     ) -> User:
         """Obtiene cualquier usuario mediante el repositorio global."""
-        return await PlatformUserService._get_active_platform_user(
-            repository,
-            user_id,
-        )
+        return await PlatformUserService._get_active_platform_user(repository,user_id)
 
     @staticmethod
     async def update_platform_user(
@@ -568,10 +573,7 @@ class PlatformUserService:
         actor: CurrentUser,
     ) -> User:
         """Actualiza administrativamente cualquier usuario autorizado."""
-        user = await PlatformUserService._get_active_platform_user(
-            repository,
-            user_id,
-        )
+        user = await PlatformUserService._get_active_platform_user(repository,user_id)
         PlatformUserService._check_platform_hierarchy(actor, user)
 
         if update_data.username is not None and update_data.username != user.username:
@@ -587,16 +589,15 @@ class PlatformUserService:
         update_dict = update_data.model_dump(exclude_unset=True)
         proposed_role = update_dict.get("role")
         if proposed_role is not None:
+            if proposed_role in PLATFORM_ROLES and user.business_id is not None:
+                raise AppException("Un usuario de plataforma no puede tener business_id.",400)
+            if proposed_role in STORE_ROLES and user.business_id is None:
+                raise AppException("Un usuario tenant debe tener business_id.",400)
+
             actor_level = PlatformUserService.ROLE_HIERARCHY.get(actor.role, 99)
-            proposed_level = PlatformUserService.ROLE_HIERARCHY.get(
-                proposed_role,
-                99,
-            )
+            proposed_level = PlatformUserService.ROLE_HIERARCHY.get(proposed_role,99)
             if actor_level >= proposed_level:
-                raise AppException(
-                    "No tienes permisos para asignar este rol al usuario",
-                    403,
-                )
+                raise AppException("No tienes permisos para asignar este rol al usuario",403)
 
         for key, value in update_dict.items():
             setattr(user, key, value)
@@ -616,10 +617,7 @@ class PlatformUserService:
         actor: CurrentUser,
     ) -> None:
         """Restablece la contraseña de cualquier usuario autorizado."""
-        user = await PlatformUserService._get_active_platform_user(
-            repository,
-            user_id,
-        )
+        user = await PlatformUserService._get_active_platform_user(repository,user_id)
         PlatformUserService._check_platform_hierarchy(actor, user)
 
         user.password_hash = hash_password(data.new_password)
@@ -632,18 +630,18 @@ class PlatformUserService:
         repository: BaseRepository[User],
         user_id: PydanticObjectId,
         actor: CurrentUser,
+        hard_delete: bool = False,
     ) -> None:
-        """Realiza el borrado lógico de cualquier usuario autorizado."""
-        user = await PlatformUserService._get_active_platform_user(
-            repository,
-            user_id,
-        )
+        """Realiza el borrado lógico o físico de cualquier usuario autorizado."""
+        user = await PlatformUserService._get_active_platform_user(repository,user_id)
         PlatformUserService._check_platform_hierarchy(actor, user)
 
-        user.is_deleted = True
-        user.deleted_at = datetime.now(timezone.utc)
-        user.deleted_by = actor.id
-        user.updated_by = actor.id
-
-        await repository.save(user)
+        if hard_delete and actor.role == Role.SUPERADMIN:
+            await repository.delete(user)
+        else:
+            user.is_deleted = True
+            user.deleted_at = datetime.now(timezone.utc)
+            user.deleted_by = actor.id
+            user.updated_by = actor.id
+            await repository.save(user)
         await AuthSession.revoke_for_user(user.id, "user_deleted")
