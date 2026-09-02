@@ -8,7 +8,7 @@ from app.domains.bussines import Business, BusinessService
 from app.domains.meta import Meta, MetaService
 
 
-class StoreResult(TypedDict):
+class Store(TypedDict):
     business: Business
     meta: Meta
 
@@ -21,7 +21,7 @@ class StoreService:
         business_repository: BaseRepository[Business],
         meta_repository: BaseRepository[Meta],
         business_id: PydanticObjectId,
-    ) -> StoreResult:
+    ) -> Store:
         business, meta = await asyncio.gather(
             BusinessService.get_business(
                 repository=business_repository,

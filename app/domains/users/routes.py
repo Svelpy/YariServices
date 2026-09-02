@@ -212,20 +212,12 @@ async def update_avatar_self(
 # ---------------------------------------------------------------------------
 
 
-@platform_business_users_router.post(
-    "",
-    response_model=UserCreationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@platform_business_users_router.post("",response_model=UserCreationResponse,status_code=status.HTTP_201_CREATED)
 async def create_business_user(
     business_id: PydanticObjectId,
     user_data: UserCreate,
-    current_user: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.CREATE)
-    ),
-    repository: TenantRepository[User] = Depends(
-        get_selected_tenant_user_repository
-    ),
+    current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.CREATE)),
+    repository: TenantRepository[User] = Depends(get_selected_tenant_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
     business_repository: BaseRepository[Business] = Depends(get_business_repository),
     mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
@@ -244,26 +236,16 @@ async def create_business_user(
     )
 
 
-@platform_business_users_router.get(
-    "",
-    response_model=PaginatedResponse[UserResponseAudit],
-)
+@platform_business_users_router.get("",response_model=PaginatedResponse[UserResponseAudit])
 async def list_business_users(
     business_id: PydanticObjectId,
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
-    q: str | None = Query(
-        None,
-        description="Búsqueda de texto en nombre, apellido, email o username",
-    ),
+    q: str | None = Query(None,description="Búsqueda de texto en nombre, apellido, email o username"),
     role: Role | None = Query(None, description="Filtrar por rol tenant"),
     status: UserStatus | None = Query(None, description="Filtrar por estado"),
-    _: CurrentUser = Depends(
-        require_platform_permission(Module.USERS, Action.READ)
-    ),
-    repository: TenantRepository[User] = Depends(
-        get_selected_tenant_user_repository
-    ),
+    _: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.READ)),
+    repository: TenantRepository[User] = Depends(get_selected_tenant_user_repository),
     business_repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Lista los usuarios tenant del negocio seleccionado."""
