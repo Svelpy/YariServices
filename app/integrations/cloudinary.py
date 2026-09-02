@@ -1,9 +1,14 @@
+import logging
+
 import cloudinary
 import cloudinary.uploader
 from fastapi import UploadFile
 
 from app.core.config import Settings, get_settings
 from app.shared.errors.exceptions import AppException
+
+
+logger = logging.getLogger(__name__)
 
 
 def configure_cloudinary(settings: Settings) -> None:
@@ -85,4 +90,16 @@ class CloudinaryService:
         public_id = CloudinaryService._extract_public_id(image_url)
         response = cloudinary.uploader.destroy(public_id)
         return response.get("result") == "ok"
+
+    @staticmethod
+    async def safe_delete_image(image_url: str) -> bool:
+        """Intenta eliminar una imagen sin interrumpir la operación principal."""
+        try:
+            return await CloudinaryService.delete_image(image_url)
+        except Exception:
+            logger.exception(
+                "No se pudo eliminar una imagen residual de Cloudinary: %s",
+                image_url,
+            )
+            return False
 

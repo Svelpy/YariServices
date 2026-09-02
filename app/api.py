@@ -4,7 +4,10 @@ from app.core.system_router import router as system_router
 from app.domains.auth.routes import router as auth_router
 from app.domains.bussines.routes import router as business_router
 from app.domains.category.routes import router as category_router
+from app.domains.meta.routes import router as meta_router
 from app.domains.products.routes import router as product_router
+from app.domains.store.routes import router as store_router
+from app.domains.users.routes import platform_business_users_router
 from app.domains.users.routes import platform_router as platform_users_router
 from app.domains.users.routes import tenant_router as tenant_users_router
 from app.domains.users.routes import me_router as me_users_router
@@ -15,9 +18,12 @@ no_system_router.include_router(auth_router)
 no_system_router.include_router(me_users_router)
 no_system_router.include_router(platform_users_router)
 no_system_router.include_router(tenant_users_router)
+no_system_router.include_router(platform_business_users_router)
 no_system_router.include_router(business_router)
 no_system_router.include_router(category_router)
+no_system_router.include_router(meta_router)
 no_system_router.include_router(product_router)
+no_system_router.include_router(store_router)
 
 api_router = APIRouter(dependencies=[Depends(rate_limit_ip)])
 api_router.include_router(system_router)

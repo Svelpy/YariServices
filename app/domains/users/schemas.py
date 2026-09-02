@@ -57,8 +57,8 @@ class UserCreate(UserRegistrationData):
     phone_number: str | None = Field(None, min_length=6, max_length=16)
     birth_date: datetime | None = None
 
-    role: Role 
-    
+    role: Role
+
     @field_validator("name", "lastname", mode="before")
     @classmethod
     def validate_names(cls, value: str | None) -> str | None:
@@ -76,7 +76,7 @@ class UserCreate(UserRegistrationData):
 
     @field_validator("birth_date")
     @classmethod
-    def validate_birth_date(cls,value: datetime | None) -> datetime | None:
+    def validate_birth_date(cls, value: datetime | None) -> datetime | None:
         return validator_birth_date(value)
 
     model_config = ConfigDict(
@@ -92,10 +92,8 @@ class UserCreate(UserRegistrationData):
                 "birth_date": "1990-01-01T00:00:00Z",
                 "role": "GERENTE",
             }
-        }
+        },
     )
-
-
 
 
 class UserSelfUpdate(BaseModel):

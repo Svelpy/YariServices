@@ -19,6 +19,7 @@ class Module(str, Enum):
     USERS = "users"
     CATEGORY = "category"
     PRODUCTS = "products"              # Sin permisos operativos asignados aún
+    META = "meta"
 
 class Action(str, Enum):
     CREATE = "create"

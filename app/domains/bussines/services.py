@@ -163,7 +163,7 @@ class BusinessService:
         business = await repository.save(business)
 
         if old_logo_url:
-            await CloudinaryService.delete_image(old_logo_url)
+            await CloudinaryService.safe_delete_image(old_logo_url)
 
         return business
 

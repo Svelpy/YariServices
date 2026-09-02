@@ -17,7 +17,8 @@ from app.domains.bussines.dependencies import get_business_repository
 from app.domains.bussines.models import Business
 from app.domains.users.dependencies import (
     get_current_tenant_user_repository,
-    get_global_user_repository
+    get_global_user_repository,
+    get_selected_tenant_user_repository,
 )
 from app.domains.users.models import User
 from app.domains.users.schemas import (
@@ -39,6 +40,7 @@ from app.domains.users.services import (
 
 tenant_router = APIRouter(prefix="/users", tags=["Tenant Users Management"])
 platform_router = APIRouter(prefix="/platform/users",tags=["Platform Users Management"])
+platform_business_users_router = APIRouter(prefix="/businesses/{business_id}/users",tags=["Platform Business Users Management"])
 me_router = APIRouter(prefix="/me",tags=["My Profile"])
 
 # ---------------------------------------------------------------------------
@@ -206,7 +208,79 @@ async def update_avatar_self(
     )
 
 # ---------------------------------------------------------------------------
-# RUTAS ADMINISTRATIVAS DE PLATAFORMA
+# RUTAS DE USUARIOS TENANT ADMINISTRADAS DESDE PLATAFORMA
+# ---------------------------------------------------------------------------
+
+
+@platform_business_users_router.post(
+    "",
+    response_model=UserCreationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_business_user(
+    business_id: PydanticObjectId,
+    user_data: UserCreate,
+    current_user: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.CREATE)
+    ),
+    repository: TenantRepository[User] = Depends(
+        get_selected_tenant_user_repository
+    ),
+    global_repository: BaseRepository[User] = Depends(get_global_user_repository),
+    business_repository: BaseRepository[Business] = Depends(get_business_repository),
+    mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
+    settings: Settings = Depends(get_settings),
+):
+    """Crea un usuario tenant dentro del negocio seleccionado."""
+    return await PlatformUserService.create_business_user(
+        repository=repository,
+        global_repository=global_repository,
+        business_repository=business_repository,
+        business_id=business_id,
+        user_data=user_data,
+        actor=current_user,
+        mongodb_client=mongodb_client,
+        settings=settings,
+    )
+
+
+@platform_business_users_router.get(
+    "",
+    response_model=PaginatedResponse[UserResponseAudit],
+)
+async def list_business_users(
+    business_id: PydanticObjectId,
+    page: int = Query(1, ge=1, description="Número de página"),
+    per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
+    q: str | None = Query(
+        None,
+        description="Búsqueda de texto en nombre, apellido, email o username",
+    ),
+    role: Role | None = Query(None, description="Filtrar por rol tenant"),
+    status: UserStatus | None = Query(None, description="Filtrar por estado"),
+    _: CurrentUser = Depends(
+        require_platform_permission(Module.USERS, Action.READ)
+    ),
+    repository: TenantRepository[User] = Depends(
+        get_selected_tenant_user_repository
+    ),
+    business_repository: BaseRepository[Business] = Depends(get_business_repository),
+):
+    """Lista los usuarios tenant del negocio seleccionado."""
+    return await PlatformUserService.list_business_users(
+        repository=repository,
+        business_repository=business_repository,
+        business_id=business_id,
+        page=page,
+        per_page=per_page,
+        q=q,
+        role=role,
+        user_status=status,
+    )
+
+
+# ---------------------------------------------------------------------------
+# RUTAS ADMINISTRATIVAS DE USUARIOS DE PLATAFORMA
 # ---------------------------------------------------------------------------
 
 
@@ -217,16 +291,13 @@ async def update_avatar_self(
 )
 async def create_platform_user(
     user_data: UserCreate,
-    is_platform:bool= Query(True,description="Indica si se crea un usuario de plataforma."),
-    business_id: PydanticObjectId | None = Query(None,description="Negocio objetivo. Solo necesario si is_platform es False."),
     current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.CREATE)),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
-    business_repository: BaseRepository[Business] = Depends(get_business_repository),
     mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
     settings: Settings = Depends(get_settings),
 ):
-    """Crea un usuario de plataforma o de un negocio seleccionado."""
+    """Crea exclusivamente un usuario de plataforma."""
     return await PlatformUserService.create_platform_user(
         repository=repository,
         global_repository=global_repository,
@@ -234,9 +305,6 @@ async def create_platform_user(
         actor=current_user,
         mongodb_client=mongodb_client,
         settings=settings,
-        business_id=business_id,
-        business_repository=business_repository,
-        is_platform=is_platform,
     )
 
 
@@ -247,11 +315,10 @@ async def list_platform_users(
     q: str | None = Query(None,description="Búsqueda de texto en nombre, apellido, email o username"),
     role: Role | None = Query(None, description="Filtrar por rol"),
     status: UserStatus | None = Query(None, description="Filtrar por estado"),
-    business_id: PydanticObjectId | None = Query(None,description="Filtrar usuarios de un negocio específico"),
     _: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.READ)),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
 ):
-    """Lista usuarios globalmente, con filtro opcional por negocio."""
+    """Lista exclusivamente usuarios de plataforma."""
     return await PlatformUserService.list_platform_users(
         repository=repository,
         page=page,
@@ -259,7 +326,6 @@ async def list_platform_users(
         q=q,
         role=role,
         user_status=status,
-        business_id=business_id,
     )
 
 

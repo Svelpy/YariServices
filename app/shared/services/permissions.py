@@ -24,11 +24,34 @@ SOLO_LECTURA = {Action.READ}
 # Un módulo ausente en el dict de un rol == sin acceso a ese módulo
 # (ni siquiera lectura).
 ROLE_PERMISSIONS: dict[Role, dict[Module, set[Action]]] = {
-
-    Role.SUPERADMIN: {Module.USERS: ALL_ACTIONS,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,Module.BUSINESS: ALL_ACTIONS,},
-    Role.ADMIN: {Module.USERS: SIN_ELIMINAR,Module.CATEGORY: SIN_ELIMINAR,Module.PRODUCTS: SIN_ELIMINAR,Module.BUSINESS:SIN_ELIMINAR},
-    Role.PROPIETARIO: {Module.USERS: ALL_ACTIONS,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,Module.BUSINESS:SIN_ELIMINAR_SIN_CREAR},
-    Role.GERENTE: {Module.USERS: SIN_ELIMINAR,Module.CATEGORY: ALL_ACTIONS,Module.PRODUCTS: ALL_ACTIONS,Module.BUSINESS:SIN_ELIMINAR_SIN_CREAR},
+    Role.SUPERADMIN: {
+        Module.USERS: ALL_ACTIONS,
+        Module.CATEGORY: ALL_ACTIONS,
+        Module.PRODUCTS: ALL_ACTIONS,
+        Module.BUSINESS: ALL_ACTIONS,
+        Module.META: SIN_ELIMINAR_SIN_CREAR,
+    },
+    Role.ADMIN: {
+        Module.USERS: SIN_ELIMINAR,
+        Module.CATEGORY: SIN_ELIMINAR,
+        Module.PRODUCTS: SIN_ELIMINAR,
+        Module.BUSINESS: SIN_ELIMINAR,
+        Module.META: SIN_ELIMINAR_SIN_CREAR,
+    },
+    Role.PROPIETARIO: {
+        Module.USERS: ALL_ACTIONS,
+        Module.CATEGORY: ALL_ACTIONS,
+        Module.PRODUCTS: ALL_ACTIONS,
+        Module.BUSINESS: SIN_ELIMINAR_SIN_CREAR,
+        Module.META: SIN_ELIMINAR_SIN_CREAR,
+    },
+    Role.GERENTE: {
+        Module.USERS: SIN_ELIMINAR,
+        Module.CATEGORY: ALL_ACTIONS,
+        Module.PRODUCTS: ALL_ACTIONS,
+        Module.BUSINESS: SIN_ELIMINAR_SIN_CREAR,
+        Module.META: SIN_ELIMINAR_SIN_CREAR,
+    },
 
     #Role.FINANZAS: {},
     #Role.VENDEDOR: {},

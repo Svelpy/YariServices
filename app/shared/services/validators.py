@@ -1,5 +1,30 @@
 import re
 from datetime import datetime, timezone
+from typing import TypeVar
+
+
+ValidatedType = TypeVar("ValidatedType")
+
+
+def validator_required_field(value: ValidatedType | None) -> ValidatedType:
+    """Rechaza null cuando un campo opcional sólo puede omitirse."""
+    if value is None:
+        raise ValueError("El campo no puede ser null.")
+    return value
+
+
+def validator_custom_domain(value: object) -> str | None:
+    """Normaliza un dominio personalizado para búsquedas e índices."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("El dominio personalizado debe ser texto.")
+
+    normalized_domain = value.strip().lower()
+    if not normalized_domain:
+        raise ValueError("El dominio personalizado no puede estar vacío.")
+    return normalized_domain
+
 
 def validator_names(v: str | None) -> str | None:
     if v is None:

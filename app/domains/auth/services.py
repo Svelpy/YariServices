@@ -10,6 +10,7 @@ from app.domains.auth.models import AuthSession, EmailVerificationToken
 from app.domains.auth.schemas import AuthTokens, UserLogin, RegistrationResponse, CurrentUser
 from app.domains.users import User, UserRegistrationData
 from app.domains.bussines import Business, BusinessRegistrationData
+from app.domains.meta import Meta
 from app.core.security import (
     DUMMY_PASSWORD_HASH,
     create_access_token,
@@ -125,6 +126,12 @@ class AuthService:
                 created_by=actor.id
             )
             await new_business.insert(session=session)
+
+            new_meta = Meta(
+                business_id=new_business.id,
+                created_by=actor.id,
+            )
+            await new_meta.insert(session=session)
 
             created_user = User(
                 email=user_data.email,

@@ -282,7 +282,7 @@ class CategoryService:
         await repository.save(category)
 
         if old_banner_url is not None:
-            await CloudinaryService.delete_image(old_banner_url)
+            await CloudinaryService.safe_delete_image(old_banner_url)
 
         return category
 

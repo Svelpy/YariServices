@@ -322,7 +322,7 @@ class UserSelfService:
         await repository.save(actor)
 
         if old_avatar_url is not None:
-            await CloudinaryService.delete_image(old_avatar_url)
+            await CloudinaryService.safe_delete_image(old_avatar_url)
         return actor
 
     @staticmethod
@@ -400,34 +400,12 @@ class PlatformUserService:
         actor: CurrentUser,
         mongodb_client: AsyncMongoClient,
         settings: Settings,
-        business_id: PydanticObjectId | None = None,
-        business_repository: BaseRepository[Business] | None = None,
-        is_platform:bool = True,
     ) -> UserCreationResponse:
-        """Crea un usuario global o asociado a un negocio seleccionado."""
+        """Crea exclusivamente un usuario de plataforma."""
         from app.domains.auth.services import AuthService
 
-
-        if is_platform:
-            if business_id is not None:
-                raise AppException("Un usuario de plataforma no puede tener business_id.",400)
-
-            if user_data.role not in PLATFORM_ROLES:
-                raise AppException("Un usuario de plataforma debe tener roles de plataforma.",400)
-
-        else:
-            if business_id is None:
-                raise AppException("business_id es obligatorio para un usuario de negocio.",400)
-
-            if user_data.role not in STORE_ROLES:
-                raise AppException("El usuario de negocio debe tener un rol tenant.",400)
-
-            if business_repository is None:
-                raise AppException("Repositorio de negocio requerido.", 500)
-
-            business = await business_repository.get(business_id)
-            if not business or business.is_deleted:
-                raise AppException("Empresa no existente.", 404)
+        if user_data.role not in PLATFORM_ROLES:
+            raise AppException("Un usuario de plataforma debe tener un rol de plataforma.",400)
 
         now = datetime.now(timezone.utc)
 
@@ -466,7 +444,7 @@ class PlatformUserService:
                 avatar_url=None,
                 phone_number=user_data.phone_number,
                 birth_date=user_data.birth_date,
-                business_id=None if is_platform else business_id,
+                business_id=None,
                 created_by=actor.id,
                 updated_by=actor.id,
             )
@@ -508,6 +486,108 @@ class PlatformUserService:
         )
 
     @staticmethod
+    async def create_business_user(
+        repository: TenantRepository[User],
+        global_repository: BaseRepository[User],
+        business_repository: BaseRepository[Business],
+        business_id: PydanticObjectId,
+        user_data: UserCreate,
+        actor: CurrentUser,
+        mongodb_client: AsyncMongoClient,
+        settings: Settings,
+    ) -> UserCreationResponse:
+        """Crea un usuario tenant desde la administración de plataforma."""
+        from app.domains.auth.services import AuthService
+
+        if user_data.role not in STORE_ROLES:
+            raise AppException("El usuario de negocio debe tener un rol tenant.",400)
+
+        business = await business_repository.get(business_id)
+        if not business or business.is_deleted:
+            raise AppException("Empresa no existente.", 404)
+
+        now = datetime.now(timezone.utc)
+
+        async def create_user_and_token(session: AsyncClientSession) -> tuple[User, str]:
+            actor_level = PlatformUserService.ROLE_HIERARCHY.get(actor.role, 99)
+            target_level = PlatformUserService.ROLE_HIERARCHY.get(user_data.role, 99)
+
+            if actor_level >= target_level:
+                raise AppException("No tienes permisos para crear un usuario con este rol",403)
+
+            username = None
+            if user_data.username:
+                cleaned_username = user_data.username.strip().lower()
+                if cleaned_username:
+                    username = cleaned_username
+
+            existing_user = await global_repository.find_one({"email": user_data.email})
+            if existing_user:
+                raise AppException("El email ya está registrado.", 409)
+
+            if username:
+                existing_username = await global_repository.find_one({"username": username})
+                if existing_username:
+                    raise AppException("El username ya está en uso.", 409)
+
+            new_user = User(
+                email=user_data.email,
+                username=username,
+                name=user_data.name,
+                lastname=user_data.lastname,
+                password_hash=hash_password(user_data.password),
+                role=user_data.role,
+                status=UserStatus.PENDING_VERIFICATION,
+                email_verified=False,
+                auth_provider=AuthProvider.LOCAL,
+                avatar_url=None,
+                phone_number=user_data.phone_number,
+                birth_date=user_data.birth_date,
+                business_id=business_id,
+                created_by=actor.id,
+                updated_by=actor.id,
+            )
+
+            created_user = await repository.create(new_user, session=session)
+
+            verification_token_value = create_one_time_token()
+            verification_token = EmailVerificationToken(
+                user_id=created_user.id,
+                token_hash=hash_one_time_token(verification_token_value),
+                expires_at=now + timedelta(hours=AuthService.VERIFICATION_TOKEN_EXPIRE_HOURS),
+            )
+            await verification_token.insert(session=session)
+
+            return created_user, verification_token_value
+
+        try:
+            async with mongodb_client.start_session() as session:
+                created_user, verification_token_value = (
+                    await session.with_transaction(create_user_and_token)
+                )
+        except DuplicateKeyError as error:
+            raise AppException("El email o username ya está registrado.",409) from error
+
+        verification_email_sent = True
+        try:
+            await AuthService.deliver_verification_email(
+                email=str(created_user.email),
+                token_value=verification_token_value,
+                settings=settings,
+            )
+        except Exception:
+            verification_email_sent = False
+
+        return UserCreationResponse(
+            user=UserResponseAudit.model_validate(created_user),
+            email=created_user.email,
+            verification_email_sent=verification_email_sent,
+            message="Usuario creado y correo de verificación enviado."
+            if verification_email_sent
+            else "Usuario creado, pero no se pudo enviar el correo.",
+        )
+
+    @staticmethod
     async def list_platform_users(
         repository: BaseRepository[User],
         page: int = 1,
@@ -515,13 +595,13 @@ class PlatformUserService:
         q: str | None = None,
         role: Role | None = None,
         user_status: UserStatus | None = None,
-        business_id: PydanticObjectId | None = None,
     ) -> dict[str, Any]:
-        """Lista usuarios globalmente, con filtro opcional por negocio."""
-        filters: dict[str, Any] = {"is_deleted": False}
-
-        if business_id is not None:
-            filters["business_id"] = business_id
+        """Lista exclusivamente usuarios de plataforma."""
+        filters: dict[str, Any] = {
+            "is_deleted": False,
+            "business_id": None,
+            "role": {"$in": list(PLATFORM_ROLES)},
+        }
 
         if q:
             safe_q = re.escape(q)
@@ -534,6 +614,64 @@ class PlatformUserService:
             ]
 
         if role is not None:
+            if role not in PLATFORM_ROLES:
+                raise AppException("El rol indicado no pertenece a la plataforma.",400)
+            filters["role"] = role
+
+        if user_status is not None:
+            filters["status"] = user_status
+
+        total_count = await repository.count(filters)
+        skip = (page - 1) * per_page
+        users = await repository.list(
+            filters,
+            skip=skip,
+            limit=per_page,
+            sort=(+User.created_at,),
+        )
+
+        return {
+            "total": total_count,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": math.ceil(total_count / per_page) if per_page > 0 else 0,
+            "data": users,
+        }
+
+    @staticmethod
+    async def list_business_users(
+        repository: TenantRepository[User],
+        business_repository: BaseRepository[Business],
+        business_id: PydanticObjectId,
+        page: int = 1,
+        per_page: int = 10,
+        q: str | None = None,
+        role: Role | None = None,
+        user_status: UserStatus | None = None,
+    ) -> dict[str, Any]:
+        """Lista usuarios de un negocio seleccionado desde plataforma."""
+        business = await business_repository.get(business_id)
+        if not business or business.is_deleted:
+            raise AppException("Empresa no existente.", 404)
+
+        filters: dict[str, Any] = {
+            "is_deleted": False,
+            "role": {"$in": list(STORE_ROLES)},
+        }
+
+        if q:
+            safe_q = re.escape(q)
+            filters["$or"] = [
+                {"email": {"$regex": safe_q, "$options": "i"}},
+                {"username": {"$regex": safe_q, "$options": "i"}},
+                {"name": {"$regex": safe_q, "$options": "i"}},
+                {"lastname": {"$regex": safe_q, "$options": "i"}},
+                {"phone_number": {"$regex": safe_q, "$options": "i"}},
+            ]
+
+        if role is not None:
+            if role not in STORE_ROLES:
+                raise AppException("El rol indicado no pertenece a un tenant.",400)
             filters["role"] = role
 
         if user_status is not None:

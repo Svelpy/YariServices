@@ -6,17 +6,18 @@ from app.core.base_model import BaseDocument
 from app.shared.enums import FrontendType, TitlePosition
 
 class ThemeColors(BaseModel):
-    one: str
-    two: str
-    three: str
-    four: str
-    five: str
-    one_d: str
-    two_d: str
-    three_d: str
-    four_d: str
-    five_d: str
-    background:str
+    one: str = "#1C1917"
+    one_d: str = "#0C0A09"
+    two: str = "#57534E"
+    two_d: str = "#44403C"
+    three: str = "#8C6A43"
+    three_d: str = "#6F5233"
+    four: str = "#C7B9A5"
+    four_d: str = "#A89273"
+    five: str = "#EDE8E0"
+    five_d: str = "#D8CFC2"
+    background: str = "#FAF9F6"
+
 class Meta(BaseDocument):
     business_id: Indexed(PydanticObjectId, unique=True)
 
@@ -24,7 +25,7 @@ class Meta(BaseDocument):
     show_title: bool = True
     title_position: TitlePosition = TitlePosition.CENTER
     template: int=1
-    colors: ThemeColors
+    colors: ThemeColors = Field(default_factory=ThemeColors)
     design_type_card: int = 1
 
     # SEO / presencia social
