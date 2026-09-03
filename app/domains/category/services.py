@@ -28,17 +28,10 @@ class CategoryService:
         if not slug:
             raise AppException("El slug no puede estar vacío y debe ser válido.", 400)
 
-        existing_slug = await repository.find_one(
-            {
-                "slug": slug,
-                "is_deleted": False,
-            }
-        )
+        existing_slug = await repository.find_one({"slug": slug,"is_deleted": False,})
+
         if existing_slug:
-            raise AppException(
-                f"El slug '{slug}' ya está registrado en otra categoría activa de tu empresa.",
-                409,
-            )
+            raise AppException(f"El slug '{slug}' ya está registrado en otra categoría activa de tu empresa.",409,)
 
         level = 0
         path = slug
@@ -46,10 +39,7 @@ class CategoryService:
         if category_data.parent_id:
             parent = await repository.get(category_data.parent_id)
             if not parent or parent.is_deleted:
-                raise AppException(
-                    "La categoría padre especificada no existe o fue eliminada.",
-                    404,
-                )
+                raise AppException("La categoría padre especificada no existe o fue eliminada.",404,)
 
             level = parent.level + 1
             path = f"{parent.path}/{slug}"
@@ -63,7 +53,6 @@ class CategoryService:
             parent_id=category_data.parent_id,
             level=level,
             display_order=category_data.display_order,
-            banner_url=category_data.banner_url,
             is_active=category_data.is_active,
             meta_title=category_data.meta_title,
             meta_description=category_data.meta_description,
@@ -175,10 +164,7 @@ class CategoryService:
         if "name" in update_dict and update_dict["name"] != category.name:
             new_slug = generate_slug(update_dict["name"])
             if not new_slug:
-                raise AppException(
-                    "El nombre proporcionado no genera un slug válido.",
-                    400,
-                )
+                raise AppException("El nombre proporcionado no genera un slug válido.",400)
 
             existing_slug = await repository.find_one(
                 {
@@ -188,10 +174,7 @@ class CategoryService:
                 }
             )
             if existing_slug:
-                raise AppException(
-                    f"El slug '{new_slug}' ya está en uso por otra categoría de tu empresa.",
-                    409,
-                )
+                raise AppException(f"El slug '{new_slug}' ya está en uso por otra categoría de tu empresa.",409)
 
             update_dict["slug"] = new_slug
 
@@ -216,16 +199,10 @@ class CategoryService:
 
                 new_parent = await repository.get(new_parent_id)
                 if not new_parent or new_parent.is_deleted:
-                    raise AppException(
-                        "La categoría padre seleccionada no existe o pertenece a otra empresa.",
-                        404,
-                    )
+                    raise AppException("La categoría padre seleccionada no existe o pertenece a otra empresa.",404)
 
                 if new_parent.path == category.path or new_parent.path.startswith(f"{category.path}/"):
-                    raise AppException(
-                        "Una categoría no puede tener como padre a uno de sus propios descendientes.",
-                        400,
-                    )
+                    raise AppException("Una categoría no puede tener como padre a uno de sus propios descendientes.",400)
 
                 new_level = new_parent.level + 1
                 new_path = f"{new_parent.path}/{new_slug}"
@@ -293,11 +270,8 @@ class CategoryService:
         actor: CurrentUser,
         hard_delete: bool = False,
     ) -> None:
-        if hard_delete and actor.role != Role.SUPERADMIN:
-            raise AppException(
-                "Solo un SUPERADMIN puede realizar un borrado permanente.",
-                403,
-            )
+        if hard_delete and actor.role != Role.PROPIETARIO:
+            raise AppException("Solo el PROPIETARIO puede realizar un borrado permanente.",403)
 
         category = await CategoryService.get_category(repository, category_id)
         descendants = await repository.list(

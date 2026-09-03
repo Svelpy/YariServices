@@ -217,7 +217,7 @@ async def create_business_user(
     business_id: PydanticObjectId,
     user_data: UserCreate,
     current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.CREATE)),
-    repository: TenantRepository[User] = Depends(get_selected_tenant_user_repository),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
     business_repository: BaseRepository[Business] = Depends(get_business_repository),
     mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
@@ -245,7 +245,7 @@ async def list_business_users(
     role: Role | None = Query(None, description="Filtrar por rol tenant"),
     status: UserStatus | None = Query(None, description="Filtrar por estado"),
     _: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.READ)),
-    repository: TenantRepository[User] = Depends(get_selected_tenant_user_repository),
+    repository: BaseRepository[User] = Depends(get_global_user_repository),
     business_repository: BaseRepository[Business] = Depends(get_business_repository),
 ):
     """Lista los usuarios tenant del negocio seleccionado."""
@@ -266,11 +266,7 @@ async def list_business_users(
 # ---------------------------------------------------------------------------
 
 
-@platform_router.post(
-    "",
-    response_model=UserCreationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@platform_router.post("",response_model=UserCreationResponse,status_code=status.HTTP_201_CREATED)
 async def create_platform_user(
     user_data: UserCreate,
     current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.CREATE)),

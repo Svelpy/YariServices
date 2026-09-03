@@ -17,7 +17,7 @@ class CategoryCreate(BaseModel):
     #level: int = 0 debe hacerse en el servicio
     display_order: int = Field(default=0, ge=0)    #revisar
 
-    banner_url: str | None = None
+    #banner_url: str | None = None
     is_active: bool = True
 
     meta_title: str | None = Field(default=None, max_length=50)
@@ -38,7 +38,6 @@ class CategoryCreate(BaseModel):
                 "description": "Portátiles y notebooks",
                 "parent_id": "507f1f77bcf86cd799439011",
                 "display_order": 5,
-                "banner_url": "https://res.cloudinary.com/.../laptops.jpg",
                 "is_active": True,
                 "meta_title": "Comprar Laptops y Portátiles",
                 "meta_description": "Encuentra las mejores laptops de última generación al mejor precio.",
@@ -56,7 +55,7 @@ class CategoryUpdate(BaseModel):
     parent_id: PydanticObjectId | None = None
     display_order: int | None = Field(default=None, ge=0)
 
-    banner_url: str | None = None
+    #banner_url: str | None = None
     is_active: bool | None = None
 
     meta_title: str | None = Field(default=None, max_length=50)

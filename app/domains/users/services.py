@@ -487,7 +487,7 @@ class PlatformUserService:
 
     @staticmethod
     async def create_business_user(
-        repository: TenantRepository[User],
+        repository: BaseRepository[User],
         global_repository: BaseRepository[User],
         business_repository: BaseRepository[Business],
         business_id: PydanticObjectId,
@@ -562,9 +562,7 @@ class PlatformUserService:
 
         try:
             async with mongodb_client.start_session() as session:
-                created_user, verification_token_value = (
-                    await session.with_transaction(create_user_and_token)
-                )
+                created_user, verification_token_value = (await session.with_transaction(create_user_and_token))
         except DuplicateKeyError as error:
             raise AppException("El email o username ya está registrado.",409) from error
 
@@ -582,8 +580,7 @@ class PlatformUserService:
             user=UserResponseAudit.model_validate(created_user),
             email=created_user.email,
             verification_email_sent=verification_email_sent,
-            message="Usuario creado y correo de verificación enviado."
-            if verification_email_sent
+            message="Usuario creado y correo de verificación enviado."if verification_email_sent
             else "Usuario creado, pero no se pudo enviar el correo.",
         )
 
@@ -599,7 +596,6 @@ class PlatformUserService:
         """Lista exclusivamente usuarios de plataforma."""
         filters: dict[str, Any] = {
             "is_deleted": False,
-            "business_id": None,
             "role": {"$in": list(PLATFORM_ROLES)},
         }
 
@@ -640,7 +636,7 @@ class PlatformUserService:
 
     @staticmethod
     async def list_business_users(
-        repository: TenantRepository[User],
+        repository: BaseRepository[User],
         business_repository: BaseRepository[Business],
         business_id: PydanticObjectId,
         page: int = 1,
@@ -655,6 +651,7 @@ class PlatformUserService:
             raise AppException("Empresa no existente.", 404)
 
         filters: dict[str, Any] = {
+            "business_id": business_id,
             "is_deleted": False,
             "role": {"$in": list(STORE_ROLES)},
         }
@@ -679,12 +676,7 @@ class PlatformUserService:
 
         total_count = await repository.count(filters)
         skip = (page - 1) * per_page
-        users = await repository.list(
-            filters,
-            skip=skip,
-            limit=per_page,
-            sort=(+User.created_at,),
-        )
+        users = await repository.list(filters,skip=skip,limit=per_page,sort=(+User.created_at,))
 
         return {
             "total": total_count,

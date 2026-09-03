@@ -5,27 +5,26 @@ from app.core.repositories import TenantRepository
 from app.shared.enums import Action, Module
 from app.shared.schemas.pagination import PaginatedResponse
 from app.shared.schemas.tree import TreeResponse
-from app.domains.auth.dependencies import create_repo, require_permission
+from app.domains.auth.dependencies import require_tenant_permission
 from app.domains.auth import CurrentUser
 from app.domains.category.models import Category
 from app.domains.category.schemas import (
     CategoryCreate,
     CategoryResponse,
-    CategoryResponseAudit,
     CategoryUpdate,
 )
 from app.domains.category.services import CategoryService
-from app.domains.users import User
+from app.domains.category.dependencies import get_current_tenant_category_repository
 
 
 router = APIRouter(prefix="/categories", tags=["Categories Management"])
-get_category_repository = create_repo(Category)
+
 
 
 @router.get("/tree", response_model=TreeResponse[CategoryResponse])
 async def get_categories_tree(
-    _: CurrentUser= Depends(require_permission(Module.CATEGORY, Action.READ)),
-    repo: TenantRepository[Category] = Depends(get_category_repository),
+    _: CurrentUser= Depends(require_tenant_permission(Module.CATEGORY, Action.READ)),
+    repo: TenantRepository[Category] = Depends(get_current_tenant_category_repository),
 ):
     return await CategoryService.get_categories_tree(repo)
 
@@ -36,8 +35,8 @@ async def list_categories(
     per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
     q: str | None = Query(None, description="Búsqueda de texto en nombre, slug o descripción"),
     parent_id: PydanticObjectId | None = Query(None, description="Filtrar por ID de la categoría padre ('null' para raíz)"),
-    _: CurrentUser= Depends(require_permission(Module.CATEGORY, Action.READ)),
-    repo: TenantRepository[Category] = Depends(get_category_repository),
+    _: CurrentUser= Depends(require_tenant_permission(Module.CATEGORY, Action.READ)),
+    repo: TenantRepository[Category] = Depends(get_current_tenant_category_repository),
 ):
     return await CategoryService.list_categories(
         repo,
@@ -51,17 +50,17 @@ async def list_categories(
 @router.get("/{category_id}", response_model=CategoryResponse)
 async def get_category(
     category_id: PydanticObjectId,
-    _: CurrentUser= Depends(require_permission(Module.CATEGORY, Action.READ)),
-    repo: TenantRepository[Category] = Depends(get_category_repository),
+    _: CurrentUser= Depends(require_tenant_permission(Module.CATEGORY, Action.READ)),
+    repo: TenantRepository[Category] = Depends(get_current_tenant_category_repository),
 ):
     return await CategoryService.get_category(repo, category_id)
 
 
-@router.post("", response_model=CategoryResponseAudit, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 async def create_category(
     category_data: CategoryCreate,
-    current_user: CurrentUser = Depends(require_permission(Module.CATEGORY, Action.CREATE)),
-    repo: TenantRepository[Category] = Depends(get_category_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.CATEGORY, Action.CREATE)),
+    repo: TenantRepository[Category] = Depends(get_current_tenant_category_repository),
 ):
     return await CategoryService.create_category(
         repository=repo,
@@ -70,12 +69,12 @@ async def create_category(
     )
 
 
-@router.patch("/{category_id}", response_model=CategoryResponseAudit)
+@router.patch("/{category_id}", response_model=CategoryResponse)
 async def update_category(
     category_id: PydanticObjectId,
     update_data: CategoryUpdate,
-    current_user: CurrentUser = Depends(require_permission(Module.CATEGORY, Action.UPDATE)),
-    repo: TenantRepository[Category] = Depends(get_category_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.CATEGORY, Action.UPDATE)),
+    repo: TenantRepository[Category] = Depends(get_current_tenant_category_repository),
 ):
     return await CategoryService.update_category(
         repo,
@@ -85,12 +84,12 @@ async def update_category(
     )
 
 
-@router.post("/{category_id}/banner", response_model=CategoryResponseAudit)
+@router.post("/{category_id}/banner", response_model=CategoryResponse)
 async def update_category_banner(
     category_id: PydanticObjectId,
     file: UploadFile = File(...),
-    current_user: CurrentUser = Depends(require_permission(Module.CATEGORY, Action.UPDATE)),
-    repo: TenantRepository[Category] = Depends(get_category_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.CATEGORY, Action.UPDATE)),
+    repo: TenantRepository[Category] = Depends(get_current_tenant_category_repository),
 ):
     return await CategoryService.update_banner(
         repo,
@@ -104,8 +103,8 @@ async def update_category_banner(
 async def delete_category(
     category_id: PydanticObjectId,
     hard_delete: bool = Query(False, description="Eliminación permanente"),
-    current_user: CurrentUser = Depends(require_permission(Module.CATEGORY, Action.DELETE)),
-    repo: TenantRepository[Category] = Depends(get_category_repository),
+    current_user: CurrentUser = Depends(require_tenant_permission(Module.CATEGORY, Action.DELETE)),
+    repo: TenantRepository[Category] = Depends(get_current_tenant_category_repository),
 ):
     await CategoryService.delete_category(
         repo,
