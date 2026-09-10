@@ -24,7 +24,7 @@ from app.shared.enums import AuthProvider, Role, UserStatus
 from app.shared.errors.exceptions import AppException
 from app.shared.services.permissions import PLATFORM_ROLES, STORE_ROLES
 from app.integrations.cloudinary import CloudinaryService
-from app.domains.bussines.models import Business
+from app.domains.stores.models import Store
 from app.domains.users.models import User
 from app.domains.users.schemas import (
     AdminResetPassword,
@@ -444,7 +444,7 @@ class PlatformUserService:
                 avatar_url=None,
                 phone_number=user_data.phone_number,
                 birth_date=user_data.birth_date,
-                business_id=None,
+                store_id=None,
                 created_by=actor.id,
                 updated_by=actor.id,
             )
@@ -486,11 +486,11 @@ class PlatformUserService:
         )
 
     @staticmethod
-    async def create_business_user(
+    async def create_store_user(
         repository: BaseRepository[User],
         global_repository: BaseRepository[User],
-        business_repository: BaseRepository[Business],
-        business_id: PydanticObjectId,
+        store_repository: BaseRepository[Store],
+        store_id: PydanticObjectId,
         user_data: UserCreate,
         actor: CurrentUser,
         mongodb_client: AsyncMongoClient,
@@ -502,8 +502,8 @@ class PlatformUserService:
         if user_data.role not in STORE_ROLES:
             raise AppException("El usuario de negocio debe tener un rol tenant.",400)
 
-        business = await business_repository.get(business_id)
-        if not business or business.is_deleted:
+        store = await store_repository.get(store_id)
+        if not store or store.is_deleted:
             raise AppException("Empresa no existente.", 404)
 
         now = datetime.now(timezone.utc)
@@ -543,7 +543,7 @@ class PlatformUserService:
                 avatar_url=None,
                 phone_number=user_data.phone_number,
                 birth_date=user_data.birth_date,
-                business_id=business_id,
+                store_id=store_id,
                 created_by=actor.id,
                 updated_by=actor.id,
             )
@@ -635,10 +635,10 @@ class PlatformUserService:
         }
 
     @staticmethod
-    async def list_business_users(
+    async def list_store_users(
         repository: BaseRepository[User],
-        business_repository: BaseRepository[Business],
-        business_id: PydanticObjectId,
+        store_repository: BaseRepository[Store],
+        store_id: PydanticObjectId,
         page: int = 1,
         per_page: int = 10,
         q: str | None = None,
@@ -646,12 +646,12 @@ class PlatformUserService:
         user_status: UserStatus | None = None,
     ) -> dict[str, Any]:
         """Lista usuarios de un negocio seleccionado desde plataforma."""
-        business = await business_repository.get(business_id)
-        if not business or business.is_deleted:
+        store = await store_repository.get(store_id)
+        if not store or store.is_deleted:
             raise AppException("Empresa no existente.", 404)
 
         filters: dict[str, Any] = {
-            "business_id": business_id,
+            "store_id": store_id,
             "is_deleted": False,
             "role": {"$in": list(STORE_ROLES)},
         }
@@ -719,10 +719,10 @@ class PlatformUserService:
         update_dict = update_data.model_dump(exclude_unset=True)
         proposed_role = update_dict.get("role")
         if proposed_role is not None:
-            if proposed_role in PLATFORM_ROLES and user.business_id is not None:
-                raise AppException("Un usuario de plataforma no puede tener business_id.",400)
-            if proposed_role in STORE_ROLES and user.business_id is None:
-                raise AppException("Un usuario tenant debe tener business_id.",400)
+            if proposed_role in PLATFORM_ROLES and user.store_id is not None:
+                raise AppException("Un usuario de plataforma no puede tener store_id.",400)
+            if proposed_role in STORE_ROLES and user.store_id is None:
+                raise AppException("Un usuario tenant debe tener store_id.",400)
 
             actor_level = PlatformUserService.ROLE_HIERARCHY.get(actor.role, 99)
             proposed_level = PlatformUserService.ROLE_HIERARCHY.get(proposed_role,99)

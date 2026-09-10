@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     REDIS_MAX_CONNECTIONS: int = 10
     RATE_LIMIT_IP_PER_MINUTE: int = 300
     RATE_LIMIT_USER_PER_MINUTE: int = 120
-    RATE_LIMIT_BUSINESS_PER_MINUTE: int = 1000
+    RATE_LIMIT_STORE_PER_MINUTE: int = 1000
     #Configuración específica de Auth
     RATE_LIMIT_REGISTER_PER_HOUR: int = 5
     RATE_LIMIT_VERIFY_PER_MINUTE: int = 10

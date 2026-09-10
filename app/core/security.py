@@ -35,7 +35,7 @@ def create_access_token(
     """
     Crear token JWT de acceso
     Args:
-        data: Datos a incluir en el token (sub, role, business_id)
+        data: Datos a incluir en el token (sub, role, store_id)
         expires_delta: Tiempo de expiración personalizado
     Returns:
         Token JWT codificado

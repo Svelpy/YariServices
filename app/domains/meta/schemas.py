@@ -117,7 +117,7 @@ class MetaResponse(BaseModel):
     """Representación de la configuración del storefront."""
 
     id: PydanticObjectId
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
 
     show_title: bool
     title_position: TitlePosition
@@ -147,7 +147,7 @@ class MetaResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439020",
-                "business_id": "507f1f77bcf86cd799439000",
+                "store_id": "507f1f77bcf86cd799439000",
                 "show_title": True,
                 "title_position": "center",
                 "template": 1,

@@ -127,7 +127,7 @@ class ProductResponse(BaseModel):
     """Schema de respuesta estándar para un producto."""
 
     id: PydanticObjectId
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
     name: str
     slug: str
     barcode: str | None = None
@@ -155,7 +155,7 @@ class ProductResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439099",
-                "business_id": "507f1f77bcf86cd799439000",
+                "store_id": "507f1f77bcf86cd799439000",
                 "name": "Laptop HP Pavilion 15",
                 "slug": "laptop-hp-pavilion-15",
                 "barcode": "7791234567890",
@@ -195,7 +195,7 @@ class ProductResponseAudit(ProductResponse):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439099",
-                "business_id": "507f1f77bcf86cd799439000",
+                "store_id": "507f1f77bcf86cd799439000",
                 "name": "Laptop HP Pavilion 15",
                 "slug": "laptop-hp-pavilion-15",
                 "barcode": "7791234567890",

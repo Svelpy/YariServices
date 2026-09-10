@@ -9,7 +9,7 @@ from pymongo.asynchronous.client_session import AsyncClientSession
 from app.domains.auth.models import AuthSession, EmailVerificationToken
 from app.domains.auth.schemas import AuthTokens, UserLogin, RegistrationResponse, CurrentUser
 from app.domains.users import User, UserRegistrationData
-from app.domains.bussines import Business, BusinessRegistrationData
+from app.domains.stores import Store, StoreRegistrationData
 from app.domains.meta import Meta
 from app.core.security import (
     DUMMY_PASSWORD_HASH,
@@ -44,15 +44,15 @@ class AuthService:
         if user.role in PLATFORM_ROLES:
             return
 
-        if user.business_id is None:
+        if user.store_id is None:
             raise AppException("El usuario no tiene un negocio asignado.", 403, ErrorCode.PERMISSION_DENIED)
 
-        business = await Business.get(user.business_id)
+        store = await Store.get(user.store_id)
 
-        if business is None or business.is_deleted:
+        if store is None or store.is_deleted:
             raise AppException("El negocio no esta disponible.", 403, ErrorCode.PERMISSION_DENIED)
 
-        if not business.is_active:
+        if not store.is_active:
             raise AppException("El negocio esta inactivo.", 403, ErrorCode.PERMISSION_DENIED)
 
 
@@ -96,7 +96,7 @@ class AuthService:
     @staticmethod
     async def register_self(
         user_data: UserRegistrationData,
-        business_data: BusinessRegistrationData,
+        store_data: StoreRegistrationData,
         actor: CurrentUser,
         mongodb_client: AsyncMongoClient,
         settings: Settings,
@@ -106,29 +106,29 @@ class AuthService:
         if existing_user:
             raise AppException("El email ya está registrado.", 409, ErrorCode.EMAIL_ALREADY_REGISTERED)
 
-        business_slug = generate_slug(business_data.name)
-        if not business_slug:
+        store_slug = generate_slug(store_data.name)
+        if not store_slug:
             raise AppException("El nombre del negocio no genera un slug válido.", 400, ErrorCode.VALIDATION_ERROR)
 
-        existing_business = await Business.find_one(Business.slug == business_slug)
-        if existing_business:
-            raise AppException("El nombre del negocio ya está registrado.", 409, ErrorCode.BUSINESS_ALREADY_REGISTERED)
+        existing_store = await Store.find_one(Store.slug == store_slug)
+        if existing_store:
+            raise AppException("El nombre del negocio ya está registrado.", 409, ErrorCode.STORE_ALREADY_REGISTERED)
 
 
         now = datetime.now(timezone.utc)
         password_hash = hash_password(user_data.password)
 
-        async def create_registration(session: AsyncClientSession) -> tuple[Business, User, str]:
+        async def create_registration(session: AsyncClientSession) -> tuple[Store, User, str]:
 
-            new_business = Business(
-                name=business_data.name,
-                slug=business_slug,
+            new_store = Store(
+                name=store_data.name,
+                slug=store_slug,
                 created_by=actor.id
             )
-            await new_business.insert(session=session)
+            await new_store.insert(session=session)
 
             new_meta = Meta(
-                business_id=new_business.id,
+                store_id=new_store.id,
                 created_by=actor.id,
             )
             await new_meta.insert(session=session)
@@ -136,7 +136,7 @@ class AuthService:
             created_user = User(
                 email=user_data.email,
                 password_hash=password_hash,
-                business_id=new_business.id,
+                store_id=new_store.id,
                 role=Role.PROPIETARIO,
                 status=UserStatus.PENDING_VERIFICATION,
                 email_verified=False,
@@ -152,11 +152,11 @@ class AuthService:
                 expires_at=now + timedelta(hours=AuthService.VERIFICATION_TOKEN_EXPIRE_HOURS),
             )
             await verification_token.insert(session=session)
-            return new_business, created_user, verification_token_value
+            return new_store, created_user, verification_token_value
 
         try:
             async with mongodb_client.start_session() as session:
-                new_business, created_user, verification_token_value=await session.with_transaction(create_registration)
+                new_store, created_user, verification_token_value=await session.with_transaction(create_registration)
         except DuplicateKeyError as error:
             raise AppException("El email, username o negocio ya está registrado.", 409, ErrorCode.CONFLICT) from error
 
@@ -171,7 +171,7 @@ class AuthService:
             verification_email_sent = False
         return RegistrationResponse(
             user_id=created_user.id,
-            business_id=created_user.business_id,
+            store_id=created_user.store_id,
             email=created_user.email,
             verification_email_sent=verification_email_sent,
             message=(
@@ -206,15 +206,15 @@ class AuthService:
             if (user is None or user.is_deleted or user.email_verified or user.status != UserStatus.PENDING_VERIFICATION):
                 raise AppException("El token es inválido, usado o expiró.", 400, ErrorCode.VERIFICATION_TOKEN_INVALID)
 
-            business = None
+            store = None
             if user.role in PLATFORM_ROLES:
                 pass
             else:
-                if user.business_id is None:
+                if user.store_id is None:
                     raise AppException("El token es inválido, usado o expiró.", 400, ErrorCode.VERIFICATION_TOKEN_INVALID)
 
-                business = await Business.get(user.business_id,session=session)
-                if business is None or business.is_deleted:
+                store = await Store.get(user.store_id,session=session)
+                if store is None or store.is_deleted:
                     raise AppException("El token es inválido, usado o expiró.", 400, ErrorCode.VERIFICATION_TOKEN_INVALID)
 
             verification_token.used_at = now
@@ -224,9 +224,9 @@ class AuthService:
             user.status = UserStatus.ACTIVE
             await user.save(session=session)
 
-            if (business is not None and user.role == Role.PROPIETARIO and not business.is_active):
-                business.is_active = True
-                await business.save(session=session)
+            if (store is not None and user.role == Role.PROPIETARIO and not store.is_active):
+                store.is_active = True
+                await store.save(session=session)
             return {"message": "Correo verificado correctamente."}
 
         async with mongodb_client.start_session() as session:
@@ -252,10 +252,10 @@ class AuthService:
                 return None
 
             if current_user.role not in PLATFORM_ROLES:
-                if current_user.business_id is None:
+                if current_user.store_id is None:
                     return None
-                business = await Business.get(current_user.business_id,session=session)
-                if business is None or business.is_deleted:
+                store = await Store.get(current_user.store_id,session=session)
+                if store is None or store.is_deleted:
                     return None
 
             await EmailVerificationToken.find(
@@ -327,7 +327,7 @@ class AuthService:
             data={
                 "sub": str(user.id),
                 "role": user.role.value,
-                "business_id": (str(user.business_id) if (user.business_id is not None) else None),
+                "store_id": (str(user.store_id) if (user.store_id is not None) else None),
             },
             settings=settings,
         )
@@ -432,9 +432,9 @@ class AuthService:
             data={
                 "sub": str(user.id),
                 "role": user.role.value,
-                "business_id": (
-                    str(user.business_id)
-                    if user.business_id is not None
+                "store_id": (
+                    str(user.store_id)
+                    if user.store_id is not None
                     else None
                 ),
             },

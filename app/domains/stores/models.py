@@ -4,7 +4,7 @@ from pydantic import EmailStr
 from app.core.base_model import BaseDocument
 
 
-class Business(BaseDocument):
+class Store(BaseDocument):
     # Identidad
     name: str  
     slug: Indexed(str, unique=True)
@@ -22,10 +22,10 @@ class Business(BaseDocument):
     is_active: bool = False
 
     class Settings:
-        name = "businesses"
+        name = "stores"
 
     def __repr__(self):
-        return f"<Business {self.name} ({self.slug})>"
+        return f"<Store {self.name} ({self.slug})>"
 
     def __str__(self):
         return self.name

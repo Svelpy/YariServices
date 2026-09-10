@@ -60,19 +60,19 @@ class BaseRepository(Generic[ModelType]):
 
 
 class TenantRepository(BaseRepository[ModelType], Generic[ModelType]):
-    """Repositorio genérico que agrega business_id a todas las consultas."""
+    """Repositorio genérico que agrega store_id a todas las consultas."""
 
     def __init__(
         self,
         model: type[ModelType],
-        business_id: PydanticObjectId,
+        store_id: PydanticObjectId,
     ):
         super().__init__(model)
-        self.business_id = business_id
+        self.store_id = store_id
 
     def _build_filters(self, filters: dict[str, Any] | None = None) -> dict[str, Any]:
         tenant_filters = super()._build_filters(filters)
-        tenant_filters["business_id"] = self.business_id
+        tenant_filters["store_id"] = self.store_id
         return tenant_filters
 
     async def create(
@@ -81,18 +81,18 @@ class TenantRepository(BaseRepository[ModelType], Generic[ModelType]):
         *,
         session: AsyncClientSession | None = None,
     ) -> ModelType:
-        setattr(document, "business_id", self.business_id)
+        setattr(document, "store_id", self.store_id)
         return await super().create(document, session=session)
 
     async def save(self, document: ModelType) -> ModelType:
-        if getattr(document, "business_id", None) != self.business_id:
-            raise ValueError("El documento no pertenece a este business_id")
+        if getattr(document, "store_id", None) != self.store_id:
+            raise ValueError("El documento no pertenece a este store_id")
 
         return await super().save(document)
 
     async def delete(self, document: ModelType) -> None:
-        if getattr(document, "business_id", None) != self.business_id:
-            raise ValueError("El documento no pertenece a este business_id")
+        if getattr(document, "store_id", None) != self.store_id:
+            raise ValueError("El documento no pertenece a este store_id")
 
         await super().delete(document)
 

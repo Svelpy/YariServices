@@ -19,7 +19,7 @@ class ThemeColors(BaseModel):
     background: str = "#FAF9F6"
 
 class Meta(BaseDocument):
-    business_id: Indexed(PydanticObjectId, unique=True)
+    store_id: Indexed(PydanticObjectId, unique=True)
 
     # Apariencia
     show_title: bool = True

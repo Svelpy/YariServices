@@ -67,7 +67,7 @@ def validator_phone(v: str | None) -> str | None:
 
 
 
-def validator_business_name(v: str | None) -> str | None:
+def validator_store_name(v: str | None) -> str | None:
     if v is None:
         return v
     v = v.strip()

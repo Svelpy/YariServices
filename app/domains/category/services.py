@@ -45,7 +45,7 @@ class CategoryService:
             path = f"{parent.path}/{slug}"
 
         category = Category(
-            business_id=repository.business_id,
+            store_id=repository.store_id,
             name=category_data.name,
             slug=slug,
             path=path,

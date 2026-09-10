@@ -23,7 +23,7 @@ class ProductService:
     def _category_repository(
         repository: TenantRepository[Product],
     ) -> TenantRepository[Category]:
-        return TenantRepository(Category, repository.business_id)
+        return TenantRepository(Category, repository.store_id)
 
     @staticmethod
     async def create_product(
@@ -90,7 +90,7 @@ class ProductService:
         ]
 
         product = Product(
-            business_id=repository.business_id,
+            store_id=repository.store_id,
             name=product_data.name,
             slug=slug,
             barcode=product_data.barcode,

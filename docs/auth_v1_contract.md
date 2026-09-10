@@ -68,7 +68,7 @@ El body mantiene los dos objetos definidos por los schemas actuales:
     "email": "usuario@example.com",
     "password": "Passw0rd123"
   },
-  "business": {
+  "store": {
     "name": "Mi negocio"
   }
 }
@@ -225,7 +225,7 @@ El catálogo estable de Auth v1 es:
 - `CSRF_INVALID`
 - `REFRESH_FAILED`
 - `EMAIL_ALREADY_REGISTERED`
-- `BUSINESS_ALREADY_REGISTERED`
+- `STORE_ALREADY_REGISTERED`
 - `VERIFICATION_TOKEN_INVALID`
 - `RESOURCE_NOT_FOUND`
 - `CONFLICT`

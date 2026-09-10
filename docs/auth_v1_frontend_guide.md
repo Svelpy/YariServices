@@ -111,7 +111,7 @@ Body JSON:
     "email": "usuario@example.com",
     "password": "Passw0rd123"
   },
-  "business": {
+  "store": {
     "name": "Mi negocio"
   }
 }
@@ -159,7 +159,7 @@ Códigos principales:
 | `PERMISSION_DENIED` | Mostrar acceso denegado; no repetir login |
 | `VALIDATION_ERROR` | Mostrar los campos incluidos en `details` |
 | `EMAIL_ALREADY_REGISTERED` | Informar que el email ya está registrado |
-| `BUSINESS_ALREADY_REGISTERED` | Solicitar otro nombre de negocio |
+| `STORE_ALREADY_REGISTERED` | Solicitar otro nombre de negocio |
 | `VERIFICATION_TOKEN_INVALID` | Informar que el enlace de verificación ya no es válido |
 | `CONFLICT` | Informar conflicto sin usar el texto de `message` como ID |
 

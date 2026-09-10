@@ -52,7 +52,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme),settings: Setting
     return user
 
 async def get_current_principal( user: User = Depends(get_current_user)) -> CurrentUser:
-    return CurrentUser(id=user.id,role=user.role,business_id=user.business_id)
+    return CurrentUser(id=user.id,role=user.role,store_id=user.store_id)
 
 async def get_current_user_optional(
     token: str | None = Depends(oauth2_scheme_optional),
@@ -64,7 +64,7 @@ async def get_current_user_optional(
 async def get_current_principal_optional(user: User | None = Depends(get_current_user_optional)) -> CurrentUser | None:
     if user is None:
         return None
-    return CurrentUser(id=user.id,role=user.role,business_id=user.business_id)
+    return CurrentUser(id=user.id,role=user.role,store_id=user.store_id)
 
 
 
@@ -80,7 +80,7 @@ def require_permission(module: Module, action: Action):
 def require_tenant_permission(module: Module, action: Action):
     async def dependency(current_user: CurrentUser = Depends(get_current_principal)) -> CurrentUser:
         _ensure_role(current_user, STORE_ROLES)
-        if current_user.business_id is None:
+        if current_user.store_id is None:
             raise AppException("El usuario no tiene un negocio asignado.",status.HTTP_403_FORBIDDEN,ErrorCode.PERMISSION_DENIED)
         _ensure_permission(current_user,module,action)
         return current_user
@@ -97,36 +97,36 @@ def require_platform_permission(module: Module, action: Action):
 
 
 async def resolve_authorized_business_id(
-    business_id: PydanticObjectId | None = Query(None,description="ID de la empresa (requerido para roles de plataforma)"),
+    store_id: PydanticObjectId | None = Query(None,description="ID de la empresa (requerido para roles de plataforma)"),
     current_user: CurrentUser = Depends(get_current_principal),
 ) -> PydanticObjectId:
     """
     Resuelve el tenant autorizado para la solicitud actual.
 
     - Roles de plataforma (SUPERADMIN y ADMIN): deben indicar el
-      `business_id` objetivo en la petición.
-    - Roles de negocio: nunca pueden indicar `business_id`; se utiliza el
+      `store_id` objetivo en la petición.
+    - Roles de negocio: nunca pueden indicar `store_id`; se utiliza el
       tenant asociado al usuario autenticado.
 
-    El `business_id` enviado por un usuario de negocio se rechaza incluso
+    El `store_id` enviado por un usuario de negocio se rechaza incluso
     cuando coincide con el tenant de su cuenta, para mantener una única
     fuente de contexto y evitar suplantaciones mediante parámetros.
     """
     if current_user.role in PLATFORM_ROLES:
-        if business_id is None:
-            raise AppException("El business_id es obligatorio para usuarios de plataforma.", status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR)
-        return business_id
+        if store_id is None:
+            raise AppException("El store_id es obligatorio para usuarios de plataforma.", status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR)
+        return store_id
 
-    if business_id is not None:
-        raise AppException("Los usuarios de negocio no pueden especificar business_id.", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
+    if store_id is not None:
+        raise AppException("Los usuarios de negocio no pueden especificar store_id.", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
 
-    if current_user.business_id is None:
+    if current_user.store_id is None:
         raise AppException("El usuario no tiene un negocio asignado.", status.HTTP_403_FORBIDDEN, ErrorCode.PERMISSION_DENIED)
 
-    return current_user.business_id
+    return current_user.store_id
 
 
 def create_repo(model):
-    async def dependency(business_id: PydanticObjectId = Depends(resolve_authorized_business_id)):
-        return TenantRepository(model, business_id)
+    async def dependency(store_id: PydanticObjectId = Depends(resolve_authorized_business_id)):
+        return TenantRepository(model, store_id)
     return dependency

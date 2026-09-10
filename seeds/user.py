@@ -142,7 +142,7 @@ async def seed_users(settings: SeedSettings) -> None:
                 username=username,
                 password_hash=hash_password(admin_data.password),
                 role=Role.SUPERADMIN,
-                business_id=None,
+                store_id=None,
                 auth_provider=AuthProvider.LOCAL,
                 status=UserStatus.ACTIVE,
                 email_verified=True,

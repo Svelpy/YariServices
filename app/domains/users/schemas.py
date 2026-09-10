@@ -254,13 +254,13 @@ class UserResponseAudit(UserResponse):
     deleted_at: datetime | None = None
     deleted_by: PydanticObjectId | None = None
     auth_provider: AuthProvider
-    business_id: PydanticObjectId | None = None
+    store_id: PydanticObjectId | None = None
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439011",
-                "business_id": "507f1f77bcf86cd799439000",
+                "store_id": "507f1f77bcf86cd799439000",
                 "email": "usuario@adamgroup.com.bo",
                 "name": "María",
                 "lastname": "García López",

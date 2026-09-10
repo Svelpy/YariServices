@@ -15,7 +15,7 @@ class Role(str, Enum):
 
 class Module(str, Enum):
     # --- Fase 1 ---
-    BUSINESS = "business"
+    STORES = "store"
     USERS = "users"
     CATEGORY = "category"
     PRODUCTS = "products"              # Sin permisos operativos asignados aún
@@ -40,10 +40,6 @@ class UserStatus(str, Enum):
     SUSPENDED = "SUSPENDED"
     BANNED = "BANNED"
 
-class BusinessPlan(str, Enum):
-    BASICO = "basico"
-    PREMIUM = "premium"
-    ENTERPRISE = "enterprise"
 
 class FrontendType(str, Enum):
     TEMPLATE = "template"

@@ -52,7 +52,7 @@ class Plan(BaseDocument):
 
 
 class Subscription(BaseDocument):
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
     plan_id: PydanticObjectId
     status: BillingStatus = BillingStatus.ACTIVE
 
@@ -69,11 +69,11 @@ class Subscription(BaseDocument):
         name = "subscriptions"
         indexes = [
             IndexModel(
-                [("business_id", ASCENDING), ("status", ASCENDING)]
+                [("store_id", ASCENDING), ("status", ASCENDING)]
             ),
             IndexModel(
                 [
-                    ("business_id", ASCENDING),
+                    ("store_id", ASCENDING),
                     ("current_period_end", DESCENDING),
                 ]
             ),
@@ -81,7 +81,7 @@ class Subscription(BaseDocument):
 
 
 class Invoice(BaseDocument):
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
     subscription_id: PydanticObjectId
     number: str
 
@@ -99,12 +99,12 @@ class Invoice(BaseDocument):
         name = "invoices"
         indexes = [
             IndexModel(
-                [("business_id", ASCENDING), ("number", ASCENDING)],
+                [("store_id", ASCENDING), ("number", ASCENDING)],
                 unique=True,
             ),
             IndexModel(
                 [
-                    ("business_id", ASCENDING),
+                    ("store_id", ASCENDING),
                     ("status", ASCENDING),
                     ("due_at", ASCENDING),
                 ]
@@ -113,7 +113,7 @@ class Invoice(BaseDocument):
 
 
 class Payment(BaseDocument):
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
     invoice_id: PydanticObjectId
 
     amount: Decimal = Field(ge=0)
@@ -127,7 +127,7 @@ class Payment(BaseDocument):
         name = "payments"
         indexes = [
             IndexModel(
-                [("business_id", ASCENDING), ("invoice_id", ASCENDING)]
+                [("store_id", ASCENDING), ("invoice_id", ASCENDING)]
             ),
             IndexModel(
                 [("transaction_id", ASCENDING)],

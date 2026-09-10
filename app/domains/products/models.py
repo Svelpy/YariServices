@@ -13,7 +13,7 @@ class ProductAttribute(BaseModel):
 # --- MODELO DE PRODUCTO (ETAPA 1) ---
 class Product(BaseDocument):
     # --- Control de Empresa e Identificación ---
-    business_id: PydanticObjectId   # El "Tenant" / Empresa dueña del producto
+    store_id: PydanticObjectId   # El "Tenant" / Empresa dueña del producto
     barcode: str | None = None              
     sku: str | None = None                   
     slug: str                     
@@ -47,21 +47,21 @@ class Product(BaseDocument):
         name = "products"
         indexes = [
             # Código de barras único por empresa (ignora nulos)
-            IndexModel([("business_id", ASCENDING), ("barcode", ASCENDING)],unique=True,partialFilterExpression={"barcode": {"$type": "string"}}),
+            IndexModel([("store_id", ASCENDING), ("barcode", ASCENDING)],unique=True,partialFilterExpression={"barcode": {"$type": "string"}}),
             # slug único por empresa
-            IndexModel([("business_id", ASCENDING), ("slug", ASCENDING)], unique=True),
+            IndexModel([("store_id", ASCENDING), ("slug", ASCENDING)], unique=True),
             # sku único por empresa, solo si existe
-            IndexModel([("business_id", ASCENDING), ("sku", ASCENDING)],unique=True,partialFilterExpression={"sku": {"$type": "string"}}),
+            IndexModel([("store_id", ASCENDING), ("sku", ASCENDING)],unique=True,partialFilterExpression={"sku": {"$type": "string"}}),
             # Búsqueda rápida por Empresa y Categoría
-            IndexModel([("business_id", ASCENDING), ("category_id", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("category_id", ASCENDING)]),
             # Filtros rápidos de activos en el frontend
-            IndexModel([("business_id", ASCENDING), ("is_active", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("is_active", ASCENDING)]),
             # Búsqueda por cualquier atributo dinámico (multi-rubro)
-            IndexModel([("business_id", ASCENDING),("attributes.key", ASCENDING),("attributes.value", ASCENDING)])
+            IndexModel([("store_id", ASCENDING),("attributes.key", ASCENDING),("attributes.value", ASCENDING)])
         ]
 
     def __repr__(self):
-        return f"<Product {self.name} ({self.business_id})>"
+        return f"<Product {self.name} ({self.store_id})>"
 
     def __str__(self):
         return self.name

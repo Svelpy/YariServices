@@ -8,7 +8,7 @@ class Category(BaseDocument):
     path: str
     description: str | None = None
 
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
     parent_id: PydanticObjectId | None = None 
     level: int
     display_order: int
@@ -23,15 +23,15 @@ class Category(BaseDocument):
         name = "categories"
         indexes = [
             # slug único, pero solo dentro de la misma empresa
-            IndexModel([("business_id", ASCENDING), ("slug", ASCENDING)], unique=True),
+            IndexModel([("store_id", ASCENDING), ("slug", ASCENDING)], unique=True),
             # path único, pero solo dentro de la misma empresa
-            IndexModel([("business_id", ASCENDING), ("path", ASCENDING)], unique=True),
+            IndexModel([("store_id", ASCENDING), ("path", ASCENDING)], unique=True),
             # Para listar hijos directos de forma ordenada, dentro de una empresa
-            IndexModel([("business_id", ASCENDING), ("parent_id", ASCENDING), ("display_order", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("parent_id", ASCENDING), ("display_order", ASCENDING)]),
             # Para búsquedas por nivel dentro de una empresa (ej: categorías raíz del menú)
-            IndexModel([("business_id", ASCENDING), ("level", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("level", ASCENDING)]),
             #para el catálogo público
-            IndexModel([("business_id", ASCENDING), ("is_active", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("is_active", ASCENDING)]),
 
         ]
  

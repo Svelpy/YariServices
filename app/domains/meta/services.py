@@ -13,8 +13,8 @@ class MetaService:
     """Gestiona la configuración y los recursos visuales del storefront."""
 
     @staticmethod
-    async def get_meta(repository: BaseRepository[Meta], business_id: PydanticObjectId,) -> Meta:
-        meta = await repository.find_one({"business_id": business_id,"is_deleted": False})
+    async def get_meta(repository: BaseRepository[Meta], store_id: PydanticObjectId,) -> Meta:
+        meta = await repository.find_one({"store_id": store_id,"is_deleted": False})
         if meta is None:
             raise AppException("Configuración del storefront no encontrada.",status.HTTP_404_NOT_FOUND,ErrorCode.RESOURCE_NOT_FOUND)
         return meta
@@ -22,11 +22,11 @@ class MetaService:
     @staticmethod
     async def update_meta(
         repository: BaseRepository[Meta],
-        business_id: PydanticObjectId,
+        store_id: PydanticObjectId,
         update_data: MetaUpdate | MetaMeUpdate,
         actor: CurrentUser,
     ) -> Meta:
-        meta = await MetaService.get_meta(repository, business_id)
+        meta = await MetaService.get_meta(repository, store_id)
         update_dict = update_data.model_dump(exclude_unset=True)
         custom_domain = update_dict.get("custom_domain")
         if custom_domain is not None:
@@ -52,13 +52,13 @@ class MetaService:
     @staticmethod
     async def replace_og_image(
         repository: BaseRepository[Meta],
-        business_id: PydanticObjectId,
+        store_id: PydanticObjectId,
         file: UploadFile,
         actor: CurrentUser,
     ) -> Meta:
-        meta = await MetaService.get_meta(repository, business_id)
+        meta = await MetaService.get_meta(repository, store_id)
         old_og = meta.og_image_url
-        new_og = await CloudinaryService.upload_image(file,folder=f"businesses/{meta.business_id}/og-images")
+        new_og = await CloudinaryService.upload_image(file,folder=f"stores/{meta.store_id}/og-images")
         meta.og_image_url = new_og
         meta.updated_by = actor.id
         meta = await repository.save(meta)
@@ -71,13 +71,13 @@ class MetaService:
     @staticmethod
     async def replace_favicon(
         repository: BaseRepository[Meta],
-        business_id: PydanticObjectId,
+        store_id: PydanticObjectId,
         file: UploadFile,
         actor: CurrentUser,
     ) -> Meta:
-        meta = await MetaService.get_meta(repository, business_id)
+        meta = await MetaService.get_meta(repository, store_id)
         old_favicon = meta.favicon_url
-        new_favicon = await CloudinaryService.upload_image(file,folder=f"businesses/{meta.business_id}/favicon")
+        new_favicon = await CloudinaryService.upload_image(file,folder=f"stores/{meta.store_id}/favicon")
         meta.favicon_url = new_favicon
         meta.updated_by = actor.id
         meta = await repository.save(meta)
@@ -90,12 +90,12 @@ class MetaService:
     @staticmethod
     async def add_carousel_image(
         repository: BaseRepository[Meta],
-        business_id: PydanticObjectId,
+        store_id: PydanticObjectId,
         file: UploadFile,
         actor: CurrentUser,
     ) -> Meta:
-        meta = await MetaService.get_meta(repository, business_id)
-        image_url = await CloudinaryService.upload_image(file,folder=f"businesses/{meta.business_id}/carousel")
+        meta = await MetaService.get_meta(repository, store_id)
+        image_url = await CloudinaryService.upload_image(file,folder=f"stores/{meta.store_id}/carousel")
         meta.carousel_urls.append(image_url)
         meta.updated_by = actor.id
         return await repository.save(meta)
@@ -104,11 +104,11 @@ class MetaService:
     @staticmethod
     async def delete_carousel_image(
         repository: BaseRepository[Meta],
-        business_id: PydanticObjectId,
+        store_id: PydanticObjectId,
         image_url: str,
         actor: CurrentUser,
     ) -> Meta:
-        meta = await MetaService.get_meta(repository, business_id)
+        meta = await MetaService.get_meta(repository, store_id)
         if image_url not in meta.carousel_urls:
             raise AppException("La imagen no pertenece al carrusel del storefront.",status.HTTP_404_NOT_FOUND,ErrorCode.RESOURCE_NOT_FOUND)
         meta.carousel_urls.remove(image_url)

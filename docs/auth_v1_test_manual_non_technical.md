@@ -95,7 +95,7 @@ Estas pruebas requieren los permisos o datos indicados:
 | Registro válido | Usuario `ADMIN` o `SUPERADMIN` | `201` y nunca se muestra la contraseña |
 | Registro sin autorización | Usuario sin rol permitido | `403` y `PERMISSION_DENIED` |
 | Registro con email repetido | Email ya existente | `409` y `EMAIL_ALREADY_REGISTERED` |
-| Registro con negocio repetido | Negocio ya existente | `409` y `BUSINESS_ALREADY_REGISTERED` |
+| Registro con negocio repetido | Negocio ya existente | `409` y `STORE_ALREADY_REGISTERED` |
 | Verificación válida | Acceso al correo de prueba | `200` |
 | Verificación inválida o expirada | Token inválido o usado | `400` y `VERIFICATION_TOKEN_INVALID` |
 | Reenvío de verificación | Email de prueba | `202` con respuesta genérica |

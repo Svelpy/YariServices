@@ -41,12 +41,12 @@ class AuthTokens(BaseModel):
 class CurrentUser(BaseModel):
     id: PydanticObjectId
     role: Role
-    business_id: PydanticObjectId | None = None
+    store_id: PydanticObjectId | None = None
 
 class TokenClaims(BaseModel):
     sub: PydanticObjectId
     role: Role
-    business_id: PydanticObjectId | None = None
+    store_id: PydanticObjectId | None = None
     iat: datetime
     exp: datetime
     jti: str
@@ -56,7 +56,7 @@ class EmailVerificationResponse(BaseModel):
 
 class RegistrationResponse(BaseModel):
     user_id: PydanticObjectId
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
     email: EmailStr
     verification_email_sent: bool
     message: str

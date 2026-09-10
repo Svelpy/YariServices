@@ -3,22 +3,22 @@ from datetime import datetime
 from beanie import PydanticObjectId
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.shared.services.validators import validator_business_name, validator_currency
+from app.shared.services.validators import validator_store_name, validator_currency
+from app.domains.meta import MetaResponse, MetaResponseAudit
 
-
-class BusinessRegistrationData(BaseModel):
+class StoreRegistrationData(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
 
     @field_validator("name", mode="before")
     @classmethod
-    def validate_business_name(cls, value: str) -> str:
-        return validator_business_name(value)
+    def validate_store_name(cls, value: str) -> str:
+        return validator_store_name(value)
 
 
 
 
 
-class BusinessMeUpdate(BaseModel):
+class StoreMeUpdate(BaseModel):
     """Campos que el propietario puede actualizar de su negocio."""
     name: str | None = Field(default=None, min_length=2, max_length=100)
     description: str | None = Field(default=None, max_length=1000)
@@ -33,7 +33,7 @@ class BusinessMeUpdate(BaseModel):
     def validate_name(cls, value: str | None) -> str:
         if value is None:
             raise ValueError("El nombre no puede ser null.")
-        return validator_business_name(value)
+        return validator_store_name(value)
 
     @field_validator("currency", mode="before")
     @classmethod
@@ -57,7 +57,7 @@ class BusinessMeUpdate(BaseModel):
         }
     )
 
-class BusinessUpdate(BusinessMeUpdate):
+class StoreUpdate(StoreMeUpdate):
     """Campos editables del negocio para actualizaciones parciales (PATCH)."""
     is_active: bool | None = None
 
@@ -77,7 +77,7 @@ class BusinessUpdate(BusinessMeUpdate):
         }
     )
 
-class BusinessResponse(BaseModel):
+class StoreResponse(BaseModel):
     """Representación pública de un negocio y su configuración de tenant."""
 
     id: PydanticObjectId
@@ -106,7 +106,7 @@ class BusinessResponse(BaseModel):
                 "id": "507f1f77bcf86cd799439000",
                 "name": "Adam Group S.R.L.",
                 "description": "Distribuidora de productos para el hogar.",
-                "logo_url": "https://cdn.example.com/businesses/adam-group/logo.png",
+                "logo_url": "https://cdn.example.com/stores/adam-group/logo.png",
                 "email": "contacto@adamgroup.com",
                 "phone": "+591 70000000",
                 "address": "Av. Principal 123, Santa Cruz, Bolivia",
@@ -124,7 +124,7 @@ class BusinessResponse(BaseModel):
 
 
 
-class BusinessResponseAudit(BusinessResponse):
+class StoreResponseAudit(StoreResponse):
     """Representación de negocio con metadatos de auditoría."""
 
     created_by: PydanticObjectId | None = None
@@ -141,7 +141,7 @@ class BusinessResponseAudit(BusinessResponse):
                 "name": "Adam Group S.R.L.",
                 "slug": "adam-group-srl",
                 "description": "Distribuidora de productos para el hogar.",
-                "logo_url": "https://cdn.example.com/businesses/adam-group/logo.png",
+                "logo_url": "https://cdn.example.com/stores/adam-group/logo.png",
                 "email": "contacto@adamgroup.com",
                 "phone": "+591 70000000",
                 "address": "Av. Principal 123, Santa Cruz, Bolivia",
@@ -158,3 +158,22 @@ class BusinessResponseAudit(BusinessResponse):
             }
         }
     )
+
+#store front----------------------------
+
+class StorefrontResponse(BaseModel):
+    """Vista unificada del negocio y la configuración de su storefront."""
+
+    store: StoreResponse
+    meta: MetaResponse
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StorefrontResponseAudit(BaseModel):
+    """Vista unificada de Store con datos de auditoría de plataforma."""
+
+    store: StoreResponseAudit
+    meta: MetaResponseAudit
+
+    model_config = ConfigDict(from_attributes=True)

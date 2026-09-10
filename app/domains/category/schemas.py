@@ -86,7 +86,7 @@ class CategoryResponse(BaseModel):
     """Schema de respuesta para categoría"""
 
     id: PydanticObjectId
-    business_id: PydanticObjectId
+    store_id: PydanticObjectId
     name: str
     slug: str
     path: str
@@ -107,7 +107,7 @@ class CategoryResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439012",
-                "business_id": "507f1f77bcf86cd799439000",
+                "store_id": "507f1f77bcf86cd799439000",
                 "name": "Laptops",
                 "slug": "laptops",
                 "path": "electronics/laptops",
@@ -140,7 +140,7 @@ class CategoryResponseAudit(CategoryResponse):
         json_schema_extra={
             "example": {
                 "id": "507f1f77bcf86cd799439012",
-                "business_id": "507f1f77bcf86cd799439000",
+                "store_id": "507f1f77bcf86cd799439000",
                 "name": "Laptops",
                 "slug": "laptops",
                 "path": "electronics/laptops",

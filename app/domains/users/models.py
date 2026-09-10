@@ -16,7 +16,7 @@ class User(BaseDocument):
     birth_date: datetime | None = None 
     avatar_url: str | None = None
 
-    business_id: PydanticObjectId | None = None # ES NONE PARA MIS TRABAJADORES
+    store_id: PydanticObjectId | None = None # ES NONE PARA MIS TRABAJADORES
     password_hash: str | None = None
     #Autorizacion Externa (AWS, Google, etc)--------------
     auth_provider: AuthProvider = AuthProvider.LOCAL
@@ -30,9 +30,9 @@ class User(BaseDocument):
         name = "users" 
         indexes = [
             IndexModel([("username", ASCENDING)], unique=True, partialFilterExpression={"username": {"$type": "string"}}),
-            IndexModel([("business_id", ASCENDING)]),
-            IndexModel([("business_id", ASCENDING), ("role", ASCENDING)]),
-            IndexModel([("business_id", ASCENDING), ("status", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("role", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("status", ASCENDING)]),
             IndexModel([("auth_provider", ASCENDING), ("provider_user_id", ASCENDING)],unique=True,partialFilterExpression={"provider_user_id": {"$type": "string"}}),
 
         ]

@@ -13,8 +13,8 @@ from app.domains.auth.dependencies import (
     require_tenant_permission,
 )
 from app.domains.auth import CurrentUser
-from app.domains.bussines.dependencies import get_business_repository
-from app.domains.bussines.models import Business
+from app.domains.stores.dependencies import get_store_repository
+from app.domains.stores.models import Store
 from app.domains.users.dependencies import (
     get_current_tenant_user_repository,
     get_global_user_repository,
@@ -40,7 +40,7 @@ from app.domains.users.services import (
 
 tenant_router = APIRouter(prefix="/users", tags=["Tenant Users Management"])
 platform_router = APIRouter(prefix="/platform/users",tags=["Platform Users Management"])
-platform_business_users_router = APIRouter(prefix="/businesses/{business_id}/users",tags=["Platform Business Users Management"])
+platform_store_users_router = APIRouter(prefix="/stores/{store_id}/users",tags=["Platform Store Users Management"])
 me_router = APIRouter(prefix="/me",tags=["My Profile"])
 
 # ---------------------------------------------------------------------------
@@ -212,23 +212,23 @@ async def update_avatar_self(
 # ---------------------------------------------------------------------------
 
 
-@platform_business_users_router.post("",response_model=UserCreationResponse,status_code=status.HTTP_201_CREATED)
-async def create_business_user(
-    business_id: PydanticObjectId,
+@platform_store_users_router.post("",response_model=UserCreationResponse,status_code=status.HTTP_201_CREATED)
+async def create_store_user(
+    store_id: PydanticObjectId,
     user_data: UserCreate,
     current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.CREATE)),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
     global_repository: BaseRepository[User] = Depends(get_global_user_repository),
-    business_repository: BaseRepository[Business] = Depends(get_business_repository),
+    store_repository: BaseRepository[Store] = Depends(get_store_repository),
     mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
     settings: Settings = Depends(get_settings),
 ):
     """Crea un usuario tenant dentro del negocio seleccionado."""
-    return await PlatformUserService.create_business_user(
+    return await PlatformUserService.create_store_user(
         repository=repository,
         global_repository=global_repository,
-        business_repository=business_repository,
-        business_id=business_id,
+        store_repository=store_repository,
+        store_id=store_id,
         user_data=user_data,
         actor=current_user,
         mongodb_client=mongodb_client,
@@ -236,9 +236,9 @@ async def create_business_user(
     )
 
 
-@platform_business_users_router.get("",response_model=PaginatedResponse[UserResponseAudit])
-async def list_business_users(
-    business_id: PydanticObjectId,
+@platform_store_users_router.get("",response_model=PaginatedResponse[UserResponseAudit])
+async def list_store_users(
+    store_id: PydanticObjectId,
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(10, ge=1, le=100, description="Registros por página"),
     q: str | None = Query(None,description="Búsqueda de texto en nombre, apellido, email o username"),
@@ -246,13 +246,13 @@ async def list_business_users(
     status: UserStatus | None = Query(None, description="Filtrar por estado"),
     _: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.READ)),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
-    business_repository: BaseRepository[Business] = Depends(get_business_repository),
+    store_repository: BaseRepository[Store] = Depends(get_store_repository),
 ):
     """Lista los usuarios tenant del negocio seleccionado."""
-    return await PlatformUserService.list_business_users(
+    return await PlatformUserService.list_store_users(
         repository=repository,
-        business_repository=business_repository,
-        business_id=business_id,
+        store_repository=store_repository,
+        store_id=store_id,
         page=page,
         per_page=per_page,
         q=q,

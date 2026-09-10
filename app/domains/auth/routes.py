@@ -17,7 +17,7 @@ from app.domains.auth.schemas import (
 )
 from app.domains.auth.dependencies import require_platform_permission
 from app.domains.auth.services import AuthService
-from app.domains.bussines import BusinessRegistrationData
+from app.domains.stores import StoreRegistrationData
 from app.domains.users import UserRegistrationData
 from app.shared.enums import Action, Module
 from app.shared.errors.codes import ErrorCode
@@ -182,8 +182,8 @@ COOKIE_OPENAPI = {
 )
 async def register(
     user: UserRegistrationData,
-    business: BusinessRegistrationData,
-    current_user: Annotated[CurrentUser,Depends(require_platform_permission(Module.BUSINESS, Action.CREATE))],  
+    store: StoreRegistrationData,
+    current_user: Annotated[CurrentUser,Depends(require_platform_permission(Module.STORES, Action.CREATE))],  
     mongodb_client: Annotated[AsyncMongoClient,Depends(get_mongodb_client)],
     settings: Annotated[Settings,Depends(get_settings)],
 ):
@@ -191,7 +191,7 @@ async def register(
 
     return await AuthService.register_self(        
         user_data=user,
-        business_data=business,
+        store_data=store,
         actor=current_user,
         mongodb_client=mongodb_client,
         settings=settings,)

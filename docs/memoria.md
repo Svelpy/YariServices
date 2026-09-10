@@ -1,10 +1,10 @@
 # Memoria de pendientes
 
-## Dominio Business
+## Dominio store
 
 ### 1. Negocios inactivos en el acceso público por slug
 
-`GET /businesses/slug/{slug}` es una ruta pública utilizada por el comprador.
+`GET /stores/slug/{slug}` es una ruta pública utilizada por el comprador.
 
 El servicio actualmente filtra:
 
@@ -40,20 +40,20 @@ confirmar el comportamiento esperado de cada dominio.
 ### 3. Consistencia del propietario al crear un negocio
 
 `create_business()` verifica que el usuario no sea ya propietario de otro
-negocio mediante `Business.owner_id`, pero se debe revisar también si el
-usuario ya tiene un `business_id` asignado.
+negocio mediante `store.owner_id`, pero se debe revisar también si el
+usuario ya tiene un `store_id` asignado.
 
 Pendiente: impedir que la creación sobrescriba el tenant actual del usuario y
 deje inconsistente la relación entre:
 
-- `Business.owner_id`.
-- `User.business_id`.
+- `store.owner_id`.
+- `User.store_id`.
 
 ### 4. Atomicidad de la creación
 
 La creación realiza dos operaciones:
 
-1. Crear el documento `Business`.
+1. Crear el documento `store`.
 2. Actualizar el `User` propietario.
 
 Pendiente: evaluar una transacción de MongoDB o una estrategia de compensación
@@ -75,13 +75,13 @@ Separar claramente las decisiones:
 Si se otorga el permiso a `ADMIN`, actualizar de forma coordinada:
 
 - `ROLE_PERMISSIONS`.
-- La dependencia de la ruta `DELETE /businesses/{business_id}`.
+- La dependencia de la ruta `DELETE /stores/{store_id}`.
 - La lógica del servicio.
 - Los tests de permisos y auditoría.
 
 ## Estado de tests
 
-Última ejecución del dominio Business:
+Última ejecución del dominio store:
 
 ```text
 38 passed

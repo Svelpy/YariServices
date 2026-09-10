@@ -19,16 +19,8 @@ from app.domains.meta.schemas import (
 from app.domains.meta.services import MetaService
 
 
-router = APIRouter(prefix="/meta", tags=["Storefront Meta Management"])
+router = APIRouter(prefix="/meta", tags=["Meta Management"])
 
-
-@router.get("/me", response_model=MetaResponse)
-async def get_my_meta(
-    current_user: CurrentUser = Depends(require_tenant_permission(Module.META, Action.READ)),
-    repository: BaseRepository[Meta] = Depends(get_meta_repository),
-):
-    """Obtiene la configuración del storefront del negocio autenticado."""
-    return await MetaService.get_meta(repository=repository,business_id=current_user.business_id)
 
 
 @router.patch("/me", response_model=MetaResponse)
@@ -40,7 +32,7 @@ async def update_my_meta(
     """Actualiza los campos editables del storefront autenticado."""
     return await MetaService.update_meta(
         repository=repository,
-        business_id=current_user.business_id,
+        store_id=current_user.store_id,
         update_data=update_data,
         actor=current_user,
     )
@@ -55,7 +47,7 @@ async def replace_my_og_image(
     """Sube o reemplaza la imagen Open Graph del storefront autenticado."""
     return await MetaService.replace_og_image(
         repository=repository,
-        business_id=current_user.business_id,
+        store_id=current_user.store_id,
         file=file,
         actor=current_user,
     )
@@ -70,7 +62,7 @@ async def replace_my_favicon(
     """Sube o reemplaza el favicon del storefront autenticado."""
     return await MetaService.replace_favicon(
         repository=repository,
-        business_id=current_user.business_id,
+        store_id=current_user.store_id,
         file=file,
         actor=current_user,
     )
@@ -85,7 +77,7 @@ async def add_my_carousel_image(
     """Agrega una imagen al carrusel del storefront autenticado."""
     return await MetaService.add_carousel_image(
         repository=repository,
-        business_id=current_user.business_id,
+        store_id=current_user.store_id,
         file=file,
         actor=current_user,
     )
@@ -100,25 +92,18 @@ async def delete_my_carousel_image(
     """Elimina una imagen del carrusel del storefront autenticado."""
     return await MetaService.delete_carousel_image(
         repository=repository,
-        business_id=current_user.business_id,
+        store_id=current_user.store_id,
         image_url=image_url,
         actor=current_user,
     )
 
 
-@router.get("/{business_id}", response_model=MetaResponseAudit)
-async def get_meta(
-    business_id: PydanticObjectId,
-    _: CurrentUser = Depends(require_platform_permission(Module.META, Action.READ)),
-    repository: BaseRepository[Meta] = Depends(get_meta_repository),
-):
-    """Obtiene la configuración de un storefront desde la plataforma."""
-    return await MetaService.get_meta(repository=repository,business_id=business_id)
 
 
-@router.patch("/{business_id}", response_model=MetaResponseAudit)
+
+@router.patch("/{store_id}", response_model=MetaResponseAudit)
 async def update_meta(
-    business_id: PydanticObjectId,
+    store_id: PydanticObjectId,
     update_data: MetaUpdate,
     current_user: CurrentUser = Depends(require_platform_permission(Module.META, Action.UPDATE)),
     repository: BaseRepository[Meta] = Depends(get_meta_repository),
@@ -126,15 +111,15 @@ async def update_meta(
     """Actualiza administrativamente la configuración de un storefront."""
     return await MetaService.update_meta(
         repository=repository,
-        business_id=business_id,
+        store_id=store_id,
         update_data=update_data,
         actor=current_user,
     )
 
 
-@router.put("/{business_id}/og-image", response_model=MetaResponseAudit)
+@router.put("/{store_id}/og-image", response_model=MetaResponseAudit)
 async def replace_og_image(
-    business_id: PydanticObjectId,
+    store_id: PydanticObjectId,
     file: UploadFile = File(...),
     current_user: CurrentUser = Depends(require_platform_permission(Module.META, Action.UPDATE)),
     repository: BaseRepository[Meta] = Depends(get_meta_repository),
@@ -142,15 +127,15 @@ async def replace_og_image(
     """Sube o reemplaza la imagen Open Graph desde la plataforma."""
     return await MetaService.replace_og_image(
         repository=repository,
-        business_id=business_id,
+        store_id=store_id,
         file=file,
         actor=current_user,
     )
 
 
-@router.put("/{business_id}/favicon", response_model=MetaResponseAudit)
+@router.put("/{store_id}/favicon", response_model=MetaResponseAudit)
 async def replace_favicon(
-    business_id: PydanticObjectId,
+    store_id: PydanticObjectId,
     file: UploadFile = File(...),
     current_user: CurrentUser = Depends(require_platform_permission(Module.META, Action.UPDATE)),
     repository: BaseRepository[Meta] = Depends(get_meta_repository),
@@ -158,15 +143,15 @@ async def replace_favicon(
     """Sube o reemplaza el favicon desde la plataforma."""
     return await MetaService.replace_favicon(
         repository=repository,
-        business_id=business_id,
+        store_id=store_id,
         file=file,
         actor=current_user,
     )
 
 
-@router.post("/{business_id}/carousel-images",response_model=MetaResponseAudit,status_code=status.HTTP_201_CREATED,)
+@router.post("/{store_id}/carousel-images",response_model=MetaResponseAudit,status_code=status.HTTP_201_CREATED,)
 async def add_carousel_image(
-    business_id: PydanticObjectId,
+    store_id: PydanticObjectId,
     file: UploadFile = File(...),
     current_user: CurrentUser = Depends(require_platform_permission(Module.META, Action.UPDATE)),
     repository: BaseRepository[Meta] = Depends(get_meta_repository),
@@ -174,15 +159,15 @@ async def add_carousel_image(
     """Agrega una imagen al carrusel desde la plataforma."""
     return await MetaService.add_carousel_image(
         repository=repository,
-        business_id=business_id,
+        store_id=store_id,
         file=file,
         actor=current_user,
     )
 
 
-@router.delete("/{business_id}/carousel-images",response_model=MetaResponseAudit)
+@router.delete("/{store_id}/carousel-images",response_model=MetaResponseAudit)
 async def delete_carousel_image(
-    business_id: PydanticObjectId,
+    store_id: PydanticObjectId,
     image_url: str = Query(...,min_length=1,max_length=2048,description="URL de la imagen del carrusel que se eliminará"),
     current_user: CurrentUser = Depends(require_platform_permission(Module.META, Action.UPDATE)),
     repository: BaseRepository[Meta] = Depends(get_meta_repository),
@@ -190,7 +175,7 @@ async def delete_carousel_image(
     """Elimina una imagen del carrusel desde la plataforma."""
     return await MetaService.delete_carousel_image(
         repository=repository,
-        business_id=business_id,
+        store_id=store_id,
         image_url=image_url,
         actor=current_user,
     )

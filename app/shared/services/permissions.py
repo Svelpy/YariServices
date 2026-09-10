@@ -9,8 +9,8 @@ archivo — no se tocan las rutas.
 from app.shared.enums import Role, Module, Action
 
 # Roles que son "tu equipo" (no pertenecen a un negocio cliente puntual).
-# Se usan para: (1) saltear el chequeo de tenant/business_id,
-#               (2) decidir qué rutas "sin business_id" están permitidas
+# Se usan para: (1) saltear el chequeo de tenant/store_id,
+#               (2) decidir qué rutas "sin store_id" están permitidas
 #                   (crear empresa, listar empresas, etc).
 PLATFORM_ROLES = {Role.SUPERADMIN, Role.ADMIN}
 STORE_ROLES = {Role.PROPIETARIO,Role.GERENTE,Role.FINANZAS,Role.VENDEDOR,Role.ALMACEN,Role.USER,}
@@ -28,28 +28,28 @@ ROLE_PERMISSIONS: dict[Role, dict[Module, set[Action]]] = {
         Module.USERS: ALL_ACTIONS,
         Module.CATEGORY: ALL_ACTIONS,
         Module.PRODUCTS: ALL_ACTIONS,
-        Module.BUSINESS: ALL_ACTIONS,
+        Module.STORES: ALL_ACTIONS,
         Module.META: SIN_ELIMINAR_SIN_CREAR,
     },
     Role.ADMIN: {
         Module.USERS: SIN_ELIMINAR,
         Module.CATEGORY: SIN_ELIMINAR,
         Module.PRODUCTS: SIN_ELIMINAR,
-        Module.BUSINESS: SIN_ELIMINAR,
+        Module.STORES: SIN_ELIMINAR,
         Module.META: SIN_ELIMINAR_SIN_CREAR,
     },
     Role.PROPIETARIO: {
         Module.USERS: ALL_ACTIONS,
         Module.CATEGORY: ALL_ACTIONS,
         Module.PRODUCTS: ALL_ACTIONS,
-        Module.BUSINESS: SIN_ELIMINAR_SIN_CREAR,
+        Module.STORES: SIN_ELIMINAR_SIN_CREAR,
         Module.META: SIN_ELIMINAR_SIN_CREAR,
     },
     Role.GERENTE: {
         Module.USERS: SIN_ELIMINAR,
         Module.CATEGORY: ALL_ACTIONS,
         Module.PRODUCTS: ALL_ACTIONS,
-        Module.BUSINESS: SIN_ELIMINAR_SIN_CREAR,
+        Module.STORES: SIN_ELIMINAR_SIN_CREAR,
         Module.META: SIN_ELIMINAR_SIN_CREAR,
     },
 

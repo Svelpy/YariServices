@@ -1,7 +1,8 @@
 import math
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
+import asyncio
 
 from beanie import PydanticObjectId
 from fastapi import UploadFile
@@ -12,22 +13,25 @@ from app.shared.errors.exceptions import AppException
 from app.shared.services.slug import generate_slug
 from app.integrations.cloudinary import CloudinaryService
 from app.domains.auth import CurrentUser
-from app.domains.bussines.models import Business
-from app.domains.bussines.schemas import BusinessMeUpdate, BusinessUpdate
+from app.domains.stores.models import Store
+from app.domains.stores.schemas import StoreMeUpdate, StoreUpdate
+from app.domains.meta import Meta, MetaService
 
-
-class BusinessService:
+class Storefront(TypedDict):
+    store: Store
+    meta: Meta
+class StoreService:
 
     @staticmethod
-    async def get_business(repository: BaseRepository[Business],business_id: PydanticObjectId) -> Business:
-        business = await repository.get(business_id)
-        if not business or business.is_deleted:
+    async def get_store(repository: BaseRepository[Store],store_id: PydanticObjectId) -> Store:
+        store = await repository.get(store_id)
+        if not store or store.is_deleted:
             raise AppException("Empresa no existente.", 404)
-        return business
+        return store
 
     @staticmethod
-    async def list_businesses(
-        repository: BaseRepository[Business],
+    async def list_store(
+        repository: BaseRepository[Store],
         page: int = 1,
         per_page: int = 10,
         q: str | None = None,
@@ -49,11 +53,11 @@ class BusinessService:
 
         total_count = await repository.count(filters)
         skip = (page - 1) * per_page
-        businesses = await repository.list(
+        stores = await repository.list(
             filters,
             skip=skip,
             limit=per_page,
-            sort=(+Business.created_at,),
+            sort=(+Store.created_at,),
         )
 
         return {
@@ -61,22 +65,22 @@ class BusinessService:
             "page": page,
             "per_page": per_page,
             "total_pages": math.ceil(total_count / per_page) if per_page > 0 else 0,
-            "data": businesses,
+            "data": stores,
         }
 
     @staticmethod
-    async def update_business(
-        repository: BaseRepository[Business],
-        business_id: PydanticObjectId,
-        update_data: BusinessUpdate | BusinessMeUpdate,
+    async def update_store(
+        repository: BaseRepository[Store],
+        store_id: PydanticObjectId,
+        update_data: StoreUpdate | StoreMeUpdate,
         actor: CurrentUser,
-    ) -> Business:
+    ) -> Store:
         """Actualiza una empresa respetando los permisos del actor."""
-        business = await BusinessService.get_business(repository, business_id)
+        store = await StoreService.get_store(repository, store_id)
 
         update_dict = update_data.model_dump(exclude_unset=True)
 
-        if "name" in update_dict and update_dict["name"] != business.name:
+        if "name" in update_dict and update_dict["name"] != store.name:
             new_slug = generate_slug(update_dict["name"])
             if not new_slug:
                 raise AppException("El nombre proporcionado no genera un slug válido.",400)
@@ -84,7 +88,7 @@ class BusinessService:
             existing_slug = await repository.find_one(
                 {
                     "slug": new_slug,
-                    "_id": {"$ne": business.id},
+                    "_id": {"$ne": store.id},
                     "is_deleted": False,
                 }
             )
@@ -93,32 +97,32 @@ class BusinessService:
             update_dict["slug"] = new_slug
 
         for key, value in update_dict.items():
-            setattr(business, key, value)
+            setattr(store, key, value)
 
-        business.updated_by = actor.id
-        return await repository.save(business)
+        store.updated_by = actor.id
+        return await repository.save(store)
 
     @staticmethod
-    async def update_my_business(
-        repository: BaseRepository[Business],
-        update_data: BusinessMeUpdate,
+    async def update_my_store(
+        repository: BaseRepository[Store],
+        update_data: StoreMeUpdate,
         actor: CurrentUser,
-    ) -> Business:
+    ) -> Store:
         """Actualiza el negocio propio del usuario autenticado."""
-        if actor.business_id is None:
+        if actor.store_id is None:
             raise AppException("El usuario no tiene una empresa asignada.", 404)
 
-        return await BusinessService.update_business(
+        return await StoreService.update_store(
             repository=repository,
-            business_id=actor.business_id,
+            store_id=actor.store_id,
             update_data=update_data,
             actor=actor,
         )
 
     @staticmethod
-    async def delete_business(
-        repository: BaseRepository[Business],
-        business_id: PydanticObjectId,
+    async def delete_store(
+        repository: BaseRepository[Store],
+        store_id: PydanticObjectId,
         actor: CurrentUser,
         hard_delete: bool = False,
     ) -> None:
@@ -126,59 +130,78 @@ class BusinessService:
         if hard_delete and actor.role != Role.SUPERADMIN:
             raise AppException("Solo un SUPERADMIN puede realizar un borrado permanente.",403)
 
-        business = await BusinessService.get_business(repository, business_id)
+        store = await StoreService.get_store(repository, store_id)
 
         if actor.role not in {Role.SUPERADMIN, Role.ADMIN}:
             raise AppException("No tienes permisos para eliminar esta empresa.", 403)
 
         if hard_delete:
-            await repository.delete(business)
+            await repository.delete(store)
             return
 
         now = datetime.now(timezone.utc)
-        business.is_deleted = True
-        business.deleted_at = now
-        business.deleted_by = actor.id
-        business.updated_by = actor.id
-        await repository.save(business)
+        store.is_deleted = True
+        store.deleted_at = now
+        store.deleted_by = actor.id
+        store.updated_by = actor.id
+        await repository.save(store)
 
     @staticmethod
-    async def update_business_logo(
-        repository: BaseRepository[Business],
-        business_id: PydanticObjectId,
+    async def update_store_logo(
+        repository: BaseRepository[Store],
+        store_id: PydanticObjectId,
         file: UploadFile,
         actor: CurrentUser,
-    ) -> Business:
-        business = await BusinessService.get_business(repository, business_id)
+    ) -> Store:
+        store = await StoreService.get_store(repository, store_id)
 
-        old_logo_url = business.logo_url
+        old_logo_url = store.logo_url
         new_logo_url = await CloudinaryService.upload_image(
             file,
-            folder="businesses",
+            folder="stores",
         )
 
-        business.logo_url = new_logo_url
-        business.updated_by = actor.id
+        store.logo_url = new_logo_url
+        store.updated_by = actor.id
 
-        business = await repository.save(business)
+        store = await repository.save(store)
 
         if old_logo_url:
             await CloudinaryService.safe_delete_image(old_logo_url)
 
-        return business
+        return store
 
     @staticmethod
-    async def update_my_business_logo(
-        repository: BaseRepository[Business],
+    async def update_my_store_logo(
+        repository: BaseRepository[Store],
         file: UploadFile,
         actor: CurrentUser,
-    ) -> Business:
-        if actor.business_id is None:
+    ) -> Store:
+        if actor.store_id is None:
             raise AppException("El usuario no tiene una empresa asignada.", 404)
 
-        return await BusinessService.update_business_logo(
+        return await StoreService.update_store_logo(
             repository=repository,
-            business_id=actor.business_id,
+            store_id=actor.store_id,
             file=file,
             actor=actor,
         )
+
+
+    @staticmethod
+    async def get_storefront(
+        store_repository: BaseRepository[Store],
+        meta_repository: BaseRepository[Meta],
+        store_id: PydanticObjectId,
+    ) -> Storefront:
+        store, meta = await asyncio.gather(
+            StoreService.get_store(
+                repository=store_repository,
+                store_id=store_id,
+            ),
+            MetaService.get_meta(
+                repository=meta_repository,
+                store_id=store_id,
+            ),
+        )
+        return {"store": store, "meta": meta}
