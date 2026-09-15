@@ -6,10 +6,25 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.shared.enums import FrontendType, TitlePosition
 from app.shared.services.validators import validator_custom_domain, validator_required_field
 
-
+class HeaderColorsSchema(BaseModel):
+    """Subpaleta de colores para el header del storefront."""
+    background: str
+    icons_color: str
+    background_icons: str
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "background": "#00bde8",
+                "icons_color": "#00bde8",
+                "background_icons": "#FFFFFF",
+            }
+        },
+    )
 class ThemeColorsSchema(BaseModel):
     """Paleta de colores utilizada por el storefront."""
-
+    background: str
     one: str
     two: str
     three: str
@@ -20,13 +35,14 @@ class ThemeColorsSchema(BaseModel):
     three_d: str
     four_d: str
     five_d: str
-    background: str
+    header:HeaderColorsSchema
 
     model_config = ConfigDict(
         extra="forbid",
         from_attributes=True,
         json_schema_extra={
             "example": {
+                "background": "#FFFFFF",
                 "one": "#2563EB",
                 "two": "#7C3AED",
                 "three": "#DB2777",
@@ -37,7 +53,7 @@ class ThemeColorsSchema(BaseModel):
                 "three_d": "#831843",
                 "four_d": "#7C2D12",
                 "five_d": "#14532D",
-                "background": "#FFFFFF",
+                "header": HeaderColorsSchema.model_config["json_schema_extra"]["example"],
             }
         },
     )

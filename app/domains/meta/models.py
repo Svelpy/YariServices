@@ -5,7 +5,13 @@ from pymongo import ASCENDING, IndexModel
 from app.core.base_model import BaseDocument
 from app.shared.enums import FrontendType, TitlePosition
 
+class HeaderColors(BaseModel):
+    background: str = "#00bde8"
+    icons_color: str = "#00bde8"
+    background_icons: str = "#FFFFFF"
+
 class ThemeColors(BaseModel):
+    background: str = "#FAF9F6"
     one: str = "#1C1917"
     one_d: str = "#0C0A09"
     two: str = "#57534E"
@@ -16,7 +22,8 @@ class ThemeColors(BaseModel):
     four_d: str = "#A89273"
     five: str = "#EDE8E0"
     five_d: str = "#D8CFC2"
-    background: str = "#FAF9F6"
+    header:HeaderColors = Field(default_factory=HeaderColors)
+
 
 class Meta(BaseDocument):
     store_id: Indexed(PydanticObjectId, unique=True)
