@@ -64,14 +64,14 @@ class MetaMeUpdate(BaseModel):
 
     show_title: bool | None = None
     title_position: TitlePosition | None = None
-    template: int | None = Field(default=None, ge=1)
+ 
     colors: ThemeColorsSchema | None = None
     design_type_card: int | None = Field(default=None, ge=1)
 
     seo_title: str | None = None
     seo_description: str | None = None
 
-    maintenance_mode: bool | None = None
+    
 
     social_links: dict[str, str] | None = None
 
@@ -94,12 +94,10 @@ class MetaMeUpdate(BaseModel):
             "example": {
                 "show_title": False,
                 "title_position": "left",
-                "template": 2,
                 "colors": ThemeColorsSchema.model_config["json_schema_extra"]["example"],
                 "design_type_card": 2,
                 "seo_title": "Nuevo título de Adam Group",
                 "seo_description": "Descubre los productos disponibles en Adam Group.",
-                "maintenance_mode": True,
                 "social_links": {
                     "facebook": "https://facebook.com/adamgroup",
                     "instagram": "https://instagram.com/adamgroup",
@@ -114,6 +112,8 @@ class MetaUpdate(MetaMeUpdate):
 
     custom_domain: str | None = Field(default=None, max_length=253)
     frontend_type: FrontendType | None = None
+    maintenance_mode: bool | None = None
+    template: int | None = Field(default=None, ge=1)
 
     @field_validator("custom_domain", mode="before")
     @classmethod
@@ -132,6 +132,8 @@ class MetaUpdate(MetaMeUpdate):
                 **MetaMeUpdate.model_config["json_schema_extra"]["example"],
                 "custom_domain": "store.adamgroup.com",
                 "frontend_type": "custom",
+                "template": 2,
+                "maintenance_mode": True,
             }
         },
     )
