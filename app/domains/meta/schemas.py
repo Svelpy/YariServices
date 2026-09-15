@@ -94,8 +94,16 @@ class MetaMeUpdate(BaseModel):
             "example": {
                 "show_title": False,
                 "title_position": "left",
+                "template": 2,
+                "colors": ThemeColorsSchema.model_config["json_schema_extra"]["example"],
+                "design_type_card": 2,
                 "seo_title": "Nuevo título de Adam Group",
+                "seo_description": "Descubre los productos disponibles en Adam Group.",
                 "maintenance_mode": True,
+                "social_links": {
+                    "facebook": "https://facebook.com/adamgroup",
+                    "instagram": "https://instagram.com/adamgroup",
+                },
             }
         },
     )
@@ -121,7 +129,7 @@ class MetaUpdate(MetaMeUpdate):
         extra="forbid",
         json_schema_extra={
             "example": {
-                "show_title": False,
+                **MetaMeUpdate.model_config["json_schema_extra"]["example"],
                 "custom_domain": "store.adamgroup.com",
                 "frontend_type": "custom",
             }
