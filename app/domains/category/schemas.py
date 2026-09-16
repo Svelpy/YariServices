@@ -15,7 +15,6 @@ class CategoryCreate(BaseModel):
 
     parent_id: PydanticObjectId | None = None
     #level: int = 0 debe hacerse en el servicio
-    display_order: int = Field(default=0, ge=0)    #revisar
 
     #banner_url: str | None = None
     is_active: bool = True
@@ -37,7 +36,6 @@ class CategoryCreate(BaseModel):
                 "name": "Laptops",
                 "description": "Portátiles y notebooks",
                 "parent_id": "507f1f77bcf86cd799439011",
-                "display_order": 5,
                 "is_active": True,
                 "meta_title": "Comprar Laptops y Portátiles",
                 "meta_description": "Encuentra las mejores laptops de última generación al mejor precio.",
@@ -75,8 +73,12 @@ class CategoryUpdate(BaseModel):
         json_schema_extra={
             "example": {
                 "name": "Laptops y Notebooks",
+                "description": "Computadoras portátiles y notebooks actualizadas.",
+                "parent_id": "507f1f77bcf86cd799439011",
                 "display_order": 3,
                 "is_active": True,
+                "meta_title": "Laptops y notebooks disponibles",
+                "meta_description": "Consulta las laptops y notebooks disponibles en nuestro catálogo.",
             }
         }
     )

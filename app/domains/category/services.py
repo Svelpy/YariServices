@@ -44,6 +44,9 @@ class CategoryService:
             level = parent.level + 1
             path = f"{parent.path}/{slug}"
 
+        last_siblings = await repository.list({"parent_id": category_data.parent_id},limit=1,sort=(-Category.display_order,),)
+        display_order = (last_siblings[0].display_order + 1 if last_siblings else 0)
+
         category = Category(
             store_id=repository.store_id,
             name=category_data.name,
@@ -52,7 +55,7 @@ class CategoryService:
             description=category_data.description,
             parent_id=category_data.parent_id,
             level=level,
-            display_order=category_data.display_order,
+            display_order=display_order,
             is_active=category_data.is_active,
             meta_title=category_data.meta_title,
             meta_description=category_data.meta_description,

@@ -54,12 +54,32 @@ class TokenClaims(BaseModel):
 class EmailVerificationResponse(BaseModel):
     message: str
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Correo verificado correctamente.",
+            }
+        }
+    )
+
 class RegistrationResponse(BaseModel):
     user_id: PydanticObjectId
     store_id: PydanticObjectId
     email: EmailStr
     verification_email_sent: bool
     message: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "user_id": "507f1f77bcf86cd799439011",
+                "store_id": "507f1f77bcf86cd799439000",
+                "email": "usuario@adamgroup.com.bo",
+                "verification_email_sent": True,
+                "message": "Registro creado y correo de verificación enviado.",
+            }
+        }
+    )
 
 
 class EmailVerificationRequest(BaseModel):

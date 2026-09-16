@@ -1,4 +1,4 @@
-from beanie import Indexed, PydanticObjectId
+from beanie import PydanticObjectId
 from pymongo import IndexModel, ASCENDING
 from pydantic import EmailStr
 from datetime import datetime
@@ -7,7 +7,7 @@ from app.shared.enums import Role, AuthProvider, UserStatus
 
 class User(BaseDocument):
     # --- Datos Básicos ---
-    email: Indexed(EmailStr, unique=True)  # Email único e indexado
+    email: EmailStr
     name: str | None = None                          # Nombre(s) — obligatorio
     lastname: str | None = None                       # Apellido(s) — obligatorio
     username: str | None = None
@@ -29,12 +29,12 @@ class User(BaseDocument):
     class Settings:
         name = "users" 
         indexes = [
-            IndexModel([("username", ASCENDING)], unique=True, partialFilterExpression={"username": {"$type": "string"}}),
+            IndexModel([("email", ASCENDING)],unique=True,partialFilterExpression={"is_deleted": False}),
+            IndexModel([("username", ASCENDING)],unique=True,partialFilterExpression={"username": {"$type": "string"},"is_deleted": False,}),
             IndexModel([("store_id", ASCENDING)]),
             IndexModel([("store_id", ASCENDING), ("role", ASCENDING)]),
             IndexModel([("store_id", ASCENDING), ("status", ASCENDING)]),
-            IndexModel([("auth_provider", ASCENDING), ("provider_user_id", ASCENDING)],unique=True,partialFilterExpression={"provider_user_id": {"$type": "string"}}),
-
+            IndexModel([("auth_provider", ASCENDING), ("provider_user_id", ASCENDING)],unique=True,partialFilterExpression={"provider_user_id": {"$type": "string"},"is_deleted": False,}),
         ]
     def __repr__(self):
         return f"<User {self.email} ({self.role})>"

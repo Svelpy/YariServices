@@ -133,15 +133,15 @@ class StoreService:
         store = await StoreService.get_store(repository, store_id)
 
         if actor.role not in {Role.SUPERADMIN, Role.ADMIN}:
-            raise AppException("No tienes permisos para eliminar esta empresa.", 403)
+            raise AppException("No tienes permisos para eliminar empresas.", 403)
 
-        if hard_delete:
+        if hard_delete and actor.role == Role.SUPERADMIN:
             await repository.delete(store)
             return
 
-        now = datetime.now(timezone.utc)
+
         store.is_deleted = True
-        store.deleted_at = now
+        store.deleted_at = datetime.now(timezone.utc)
         store.deleted_by = actor.id
         store.updated_by = actor.id
         await repository.save(store)

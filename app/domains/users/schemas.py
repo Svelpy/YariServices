@@ -287,3 +287,14 @@ class UserCreationResponse(BaseModel):
     email: EmailStr
     verification_email_sent: bool
     message: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "user": UserResponse.model_config["json_schema_extra"]["example"],
+                "email": "usuario@adamgroup.com.bo",
+                "verification_email_sent": True,
+                "message": "Usuario creado correctamente.",
+            }
+        }
+    )

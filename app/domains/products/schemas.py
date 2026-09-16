@@ -9,21 +9,9 @@ from app.shared.services.validators import validator_product_name
 class ProductAttributeSchema(BaseModel):
     """Schema para atributos dinámicos polimórficos multi-rubro."""
 
-    key: str = Field(
-        ...,
-        max_length=50,
-        description="Identificador técnico (ej: color, talla, memoria)",
-    )
-    value: str = Field(
-        ...,
-        max_length=200,
-        description="Valor real (ej: Rojo, XL, 128GB)",
-    )
-    label: str = Field(
-        ...,
-        max_length=50,
-        description="Nombre visible en el frontend (ej: Color, Talla)",
-    )
+    key: str = Field(...,max_length=50,description="Identificador técnico (ej: color, talla, memoria)",)
+    value: str = Field(...,max_length=200,description="Valor real (ej: Rojo, XL, 128GB)",)
+    label: str = Field(...,max_length=50,description="Nombre visible en el frontend (ej: Color, Talla)",)
 
 
 class ProductCreate(BaseModel):
@@ -42,10 +30,7 @@ class ProductCreate(BaseModel):
     stock: int = Field(default=0, ge=0)
     min_stock: int = Field(default=5, ge=0)
 
-    images: list[str] = Field(
-        default_factory=list,
-        description="Lista de URLs de imágenes almacenadas en Cloudinary",
-    )
+    images: list[str] = Field(default_factory=list, description="Lista de URLs de imágenes almacenadas en Cloudinary",)
     display_order: int = Field(default=0, ge=0)
     attributes: list[ProductAttributeSchema] = Field(default_factory=list)
     is_active: bool = True
@@ -62,12 +47,17 @@ class ProductCreate(BaseModel):
                 "barcode": "7791234567890",
                 "sku": "HP-PAV-15-ROJO",
                 "presentation": "Unidad",
+                "category_id": "507f1f77bcf86cd799439012",
                 "brand": "HP",
                 "description": "Portátil HP Pavilion 15 con procesador Intel i7 y 16GB RAM",
                 "price": 850.0,
                 "price_discount": 780.0,
                 "stock": 12,
                 "min_stock": 3,
+                "images": [
+                    "https://cdn.example.com/products/hp-pavilion-15-front.png",
+                    "https://cdn.example.com/products/hp-pavilion-15-side.png",
+                ],
                 "display_order": 1,
                 "attributes": [
                     {"key": "color", "value": "Plata", "label": "Color"},
@@ -95,10 +85,7 @@ class ProductUpdate(BaseModel):
     stock: int | None = Field(default=None, ge=0)
     min_stock: int | None = Field(default=None, ge=0)
 
-    images: list[str] | None = Field(
-        default=None,
-        description="Lista de URLs de imágenes para reemplazar o actualizar",
-    )
+    images: list[str] | None = Field(default=None, description="Lista de URLs de imágenes para reemplazar o actualizar")
     display_order: int | None = Field(default=None, ge=0)
     attributes: list[ProductAttributeSchema] | None = None
     is_active: bool | None = None
@@ -113,10 +100,25 @@ class ProductUpdate(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
+                "name": "Laptop HP Pavilion 15 actualizada",
+                "barcode": "7791234567890",
+                "sku": "HP-PAV-15-2026",
+                "presentation": "Unidad",
+                "category_id": "507f1f77bcf86cd799439012",
+                "brand": "HP",
+                "description": "Laptop HP Pavilion 15 con especificaciones actualizadas.",
                 "price": 820.0,
                 "price_discount": 790.0,
                 "stock": 15,
+                "min_stock": 4,
+                "images": [
+                    "https://cdn.example.com/products/hp-pavilion-15-updated.png",
+                ],
                 "display_order": 2,
+                "attributes": [
+                    {"key": "color", "value": "Plata", "label": "Color"},
+                    {"key": "ram", "value": "16GB", "label": "Memoria RAM"},
+                ],
                 "is_active": True,
             }
         }
@@ -173,6 +175,10 @@ class ProductResponse(BaseModel):
                     {"key": "color", "value": "Plata", "label": "Color"},
                     {"key": "ram", "value": "16GB", "label": "Memoria RAM"},
                 ],
+                "images": [
+                    "https://cdn.example.com/products/hp-pavilion-15-front.png",
+                    "https://cdn.example.com/products/hp-pavilion-15-side.png",
+                ],
                 "is_active": True,
                 "created_at": "2026-07-12T19:00:00Z",
                 "updated_at": "2026-07-12T19:00:00Z",
@@ -211,6 +217,10 @@ class ProductResponseAudit(ProductResponse):
                 "display_order": 1,
                 "attributes": [
                     {"key": "color", "value": "Plata", "label": "Color"},
+                ],
+                "images": [
+                    "https://cdn.example.com/products/hp-pavilion-15-front.png",
+                    "https://cdn.example.com/products/hp-pavilion-15-side.png",
                 ],
                 "is_active": True,
                 "created_at": "2026-07-12T19:00:00Z",

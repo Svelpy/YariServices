@@ -102,7 +102,7 @@ class AuthService:
         settings: Settings,
     ) -> RegistrationResponse:
         """Registra un propietario y crea su negocio."""
-        existing_user = await User.find_one(User.email == user_data.email)
+        existing_user = await User.find_one({"email": user_data.email,"is_deleted": False})
         if existing_user:
             raise AppException("El email ya está registrado.", 409, ErrorCode.EMAIL_ALREADY_REGISTERED)
 

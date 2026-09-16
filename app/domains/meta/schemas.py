@@ -78,10 +78,8 @@ class MetaMeUpdate(BaseModel):
     @field_validator(
         "show_title",
         "title_position",
-        "template",
         "colors",
         "design_type_card",
-        "maintenance_mode",
         "social_links",
     )
     @classmethod

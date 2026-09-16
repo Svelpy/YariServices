@@ -14,6 +14,14 @@ class StoreRegistrationData(BaseModel):
     def validate_store_name(cls, value: str) -> str:
         return validator_store_name(value)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Adam Group S.R.L.",
+            }
+        }
+    )
+
 
 
 
@@ -167,7 +175,15 @@ class StorefrontResponse(BaseModel):
     store: StoreResponse
     meta: MetaResponse
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "store": StoreResponse.model_config["json_schema_extra"]["example"],
+                "meta": MetaResponse.model_config["json_schema_extra"]["example"],
+            }
+        },
+    )
 
 
 class StorefrontResponseAudit(BaseModel):
@@ -176,4 +192,12 @@ class StorefrontResponseAudit(BaseModel):
     store: StoreResponseAudit
     meta: MetaResponseAudit
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "store": StoreResponseAudit.model_config["json_schema_extra"]["example"],
+                "meta": MetaResponseAudit.model_config["json_schema_extra"]["example"],
+            }
+        },
+    )

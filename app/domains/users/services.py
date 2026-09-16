@@ -1,16 +1,13 @@
-from app.domains.auth import AuthSession, CurrentUser
-from app.domains.auth.models import EmailVerificationToken
-
 import math
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from beanie import PydanticObjectId
-from pymongo import AsyncMongoClient
-from pymongo.errors import DuplicateKeyError
-from pymongo.asynchronous.client_session import AsyncClientSession
 from fastapi import UploadFile
+from pymongo import AsyncMongoClient
+from pymongo.asynchronous.client_session import AsyncClientSession
+from pymongo.errors import DuplicateKeyError
 
 from app.core.config import Settings
 from app.core.repositories import BaseRepository, TenantRepository
@@ -24,6 +21,13 @@ from app.shared.enums import AuthProvider, Role, UserStatus
 from app.shared.errors.exceptions import AppException
 from app.shared.services.permissions import PLATFORM_ROLES, STORE_ROLES
 from app.integrations.cloudinary import CloudinaryService
+from app.domains.auth.models import AuthSession, EmailVerificationToken
+from app.domains.auth.schemas import CurrentUser
+from app.domains.billing.models import Invoice, Payment, Subscription
+from app.domains.category.models import Category
+from app.domains.error_logs.models import ErrorLog
+from app.domains.meta.models import Meta
+from app.domains.products.models import Product
 from app.domains.stores.models import Store
 from app.domains.users.models import User
 from app.domains.users.schemas import (
@@ -36,6 +40,315 @@ from app.domains.users.schemas import (
     UserResponse,
     UserResponseAudit,
 )
+
+
+class _UserDeletionService:
+    """Coordina el borrado transaccional de usuarios y sus dependencias."""
+
+    @staticmethod
+    async def _revoke_auth_data(
+        user_ids: list[PydanticObjectId],
+        now: datetime,
+        reason: str,
+        session: AsyncClientSession,
+    ) -> None:
+        await AuthSession.find(
+            {"user_id": {"$in": user_ids}, "revoked_at": None}
+        ).update(
+            {
+                "$set": {
+                    "revoked_at": now,
+                    "revocation_reason": reason,
+                }
+            },
+            session=session,
+        )
+        await EmailVerificationToken.find(
+            {
+                "user_id": {"$in": user_ids},
+                "used_at": None,
+                "revoked_at": None,
+            }
+        ).update(
+            {"$set": {"revoked_at": now}},
+            session=session,
+        )
+
+    @staticmethod
+    async def _delete_auth_data(
+        user_ids: list[PydanticObjectId],
+        session: AsyncClientSession,
+    ) -> None:
+        await AuthSession.find(
+            {"user_id": {"$in": user_ids}}
+        ).delete(session=session)
+        await EmailVerificationToken.find(
+            {"user_id": {"$in": user_ids}}
+        ).delete(session=session)
+
+    @staticmethod
+    async def _soft_delete_many(
+        model: type[Any],
+        filters: dict[str, Any],
+        now: datetime,
+        actor_id: PydanticObjectId,
+        session: AsyncClientSession,
+        extra_fields: dict[str, Any] | None = None,
+    ) -> None:
+        fields: dict[str, Any] = {
+            "is_deleted": True,
+            "deleted_at": now,
+            "deleted_by": actor_id,
+            "updated_at": now,
+            "updated_by": actor_id,
+        }
+        fields.update(extra_fields or {})
+        await model.find(
+            {**filters, "is_deleted": False}
+        ).update(
+            {"$set": fields},
+            session=session,
+        )
+
+    @staticmethod
+    async def _collect_store_resources(
+        store_id: PydanticObjectId,
+        session: AsyncClientSession,
+    ) -> tuple[set[str], list[User]]:
+        image_urls: set[str] = set()
+
+        store = await Store.get(store_id, session=session)
+        if store is not None and store.logo_url:
+            image_urls.add(store.logo_url)
+
+        users = await User.find(
+            {"store_id": store_id},
+            session=session,
+        ).to_list()
+        for user in users:
+            if user.avatar_url:
+                image_urls.add(user.avatar_url)
+
+        metas = await Meta.find(
+            {"store_id": store_id},
+            session=session,
+        ).to_list()
+        for meta in metas:
+            if meta.og_image_url:
+                image_urls.add(meta.og_image_url)
+            if meta.favicon_url:
+                image_urls.add(meta.favicon_url)
+            image_urls.update(meta.carousel_urls)
+
+        categories = await Category.find(
+            {"store_id": store_id},
+            session=session,
+        ).to_list()
+        for category in categories:
+            if category.banner_url:
+                image_urls.add(category.banner_url)
+
+        products = await Product.find(
+            {"store_id": store_id},
+            session=session,
+        ).to_list()
+        for product in products:
+            image_urls.update(product.images)
+
+        return image_urls, users
+
+    @staticmethod
+    async def _delete_store_data(
+        store_id: PydanticObjectId,
+        actor_id: PydanticObjectId,
+        hard_delete: bool,
+        session: AsyncClientSession,
+        reason: str,
+    ) -> set[str]:
+        image_urls, users = await _UserDeletionService._collect_store_resources(
+            store_id,
+            session,
+        )
+        user_ids = [user.id for user in users]
+        now = datetime.now(timezone.utc)
+
+        if hard_delete:
+            if user_ids:
+                await _UserDeletionService._delete_auth_data(user_ids, session)
+                await ErrorLog.find(
+                    {"user_id": {"$in": user_ids}}
+                ).delete(session=session)
+
+            for model in (
+                Payment,
+                Invoice,
+                Subscription,
+                Product,
+                Category,
+                Meta,
+                User,
+            ):
+                await model.find(
+                    {"store_id": store_id}
+                ).delete(session=session)
+
+            await Store.find({"_id": store_id}).delete(session=session)
+            return image_urls
+
+        if user_ids:
+            await _UserDeletionService._revoke_auth_data(
+                user_ids,
+                now,
+                reason,
+                session,
+            )
+            await _UserDeletionService._soft_delete_many(
+                ErrorLog,
+                {"user_id": {"$in": user_ids}},
+                now,
+                actor_id,
+                session,
+            )
+
+        await User.find({"store_id": store_id}).update(
+            {"$set": {"avatar_url": None}},
+            session=session,
+        )
+        await Store.find({"_id": store_id}).update(
+            {"$set": {"logo_url": None}},
+            session=session,
+        )
+        await Meta.find({"store_id": store_id}).update(
+            {
+                "$set": {
+                    "og_image_url": None,
+                    "favicon_url": None,
+                    "carousel_urls": [],
+                }
+            },
+            session=session,
+        )
+        await Category.find({"store_id": store_id}).update(
+            {"$set": {"banner_url": None}},
+            session=session,
+        )
+        await Product.find({"store_id": store_id}).update(
+            {"$set": {"images": []}},
+            session=session,
+        )
+
+        await _UserDeletionService._soft_delete_many(
+            Store,
+            {"_id": store_id},
+            now,
+            actor_id,
+            session,
+            {"is_active": False},
+        )
+        for model in (
+            User,
+            Meta,
+            Category,
+            Product,
+            Subscription,
+            Invoice,
+            Payment,
+        ):
+            await _UserDeletionService._soft_delete_many(
+                model,
+                {"store_id": store_id},
+                now,
+                actor_id,
+                session,
+            )
+
+        return image_urls
+
+    @staticmethod
+    async def _delete_single_user(
+        user: User,
+        actor_id: PydanticObjectId,
+        hard_delete: bool,
+        session: AsyncClientSession,
+        reason: str,
+    ) -> set[str]:
+        image_urls = {user.avatar_url} if user.avatar_url else set()
+        user_ids = [user.id]
+        now = datetime.now(timezone.utc)
+
+        if hard_delete:
+            await _UserDeletionService._delete_auth_data(user_ids, session)
+            await ErrorLog.find(
+                {"user_id": user.id}
+            ).delete(session=session)
+            await user.delete(session=session)
+            return image_urls
+
+        user.avatar_url = None
+        user.is_deleted = True
+        user.deleted_at = now
+        user.deleted_by = actor_id
+        user.updated_by = actor_id
+        await user.save(session=session)
+        await _UserDeletionService._revoke_auth_data(
+            user_ids,
+            now,
+            reason,
+            session,
+        )
+        return image_urls
+
+    @staticmethod
+    async def delete_user(
+        user: User,
+        actor: CurrentUser,
+        mongodb_client: AsyncMongoClient,
+        hard_delete: bool,
+        reason: str,
+    ) -> None:
+        async def delete_in_transaction(
+            session: AsyncClientSession,
+        ) -> set[str]:
+            current_user = await User.find_one(
+                {"_id": user.id, "is_deleted": False},
+                session=session,
+            )
+            if current_user is None:
+                raise AppException("Usuario no existente", 404)
+            if (
+                current_user.role != user.role
+                or current_user.store_id != user.store_id
+            ):
+                raise AppException(
+                    "El usuario cambió durante la eliminación. Intenta nuevamente.",
+                    409,
+                )
+
+            if (
+                current_user.role == Role.PROPIETARIO
+                and current_user.store_id is not None
+            ):
+                return await _UserDeletionService._delete_store_data(
+                    current_user.store_id,
+                    actor.id,
+                    hard_delete,
+                    session,
+                    reason,
+                )
+
+            return await _UserDeletionService._delete_single_user(
+                current_user,
+                actor.id,
+                hard_delete,
+                session,
+                reason,
+            )
+
+        async with mongodb_client.start_session() as session:
+            image_urls = await session.with_transaction(delete_in_transaction)
+
+        for image_url in image_urls:
+            await CloudinaryService.safe_delete_image(image_url)
 
 
 class TenantUserService:
@@ -107,12 +420,12 @@ class TenantUserService:
                 if cleaned_username:
                     username = cleaned_username
 
-            existing_user = await global_repository.find_one({"email": user_data.email})
+            existing_user = await global_repository.find_one({"email": user_data.email,"is_deleted": False})
             if existing_user:
                 raise AppException("El email ya está registrado.", 409)
 
             if username:
-                existing_username = await global_repository.find_one({"username": username})
+                existing_username = await global_repository.find_one({"username": username,"is_deleted": False})
                 if existing_username:
                     raise AppException("El username ya está en uso.", 409)
 
@@ -233,12 +546,7 @@ class TenantUserService:
         TenantUserService._check_tenant_hierarchy(actor, user)
 
         if update_data.username is not None and update_data.username != user.username:
-            existing = await global_repository.find_one(
-                {
-                    "username": update_data.username,
-                    "_id": {"$ne": user.id},
-                }
-            )
+            existing = await global_repository.find_one({"username": update_data.username,"_id": {"$ne": user.id},"is_deleted": False})
             if existing:
                 raise AppException("El username ya está en uso", 409)
 
@@ -281,21 +589,25 @@ class TenantUserService:
         repository: TenantRepository[User],
         user_id: PydanticObjectId,
         actor: CurrentUser,
+        mongodb_client: AsyncMongoClient,
     ) -> None:
         """
         Elimina un usuario: soft delete.
         """
+        if actor.role != Role.PROPIETARIO:
+            raise AppException("No tienes permisos para eliminar usuarios.", 403)
 
         user = await TenantUserService._get_active_tenant_user(repository, user_id)
+
         TenantUserService._check_tenant_hierarchy(actor, user)
 
-        user.is_deleted = True
-        user.deleted_at = datetime.now(timezone.utc)
-        user.deleted_by = actor.id
-        user.updated_by = actor.id
-
-        await repository.save(user)
-        await AuthSession.revoke_for_user(user.id,"user_deleted_by_tenant")
+        await _UserDeletionService.delete_user(
+            user=user,
+            actor=actor,
+            mongodb_client=mongodb_client,
+            hard_delete=False,
+            reason="user_soft_deleted_by_tenant",
+        )
 
 
 
@@ -333,12 +645,7 @@ class UserSelfService:
     ) -> User:
         """Actualiza el perfil del usuario autenticado."""
         if update_data.username is not None and update_data.username != actor.username:
-            existing = await repository.find_one(
-                {
-                    "username": update_data.username,
-                    "_id": {"$ne": actor.id},
-                }
-            )
+            existing = await repository.find_one({"username": update_data.username,"_id": {"$ne": actor.id},"is_deleted": False})
             if existing:
                 raise AppException("El username ya está en uso", 409)
 
@@ -422,12 +729,12 @@ class PlatformUserService:
                 if cleaned_username:
                     username = cleaned_username
 
-            existing_user = await global_repository.find_one({"email": user_data.email})
+            existing_user = await global_repository.find_one({"email": user_data.email,"is_deleted": False})
             if existing_user:
                 raise AppException("El email ya está registrado.", 409)
 
             if username:
-                existing_username = await global_repository.find_one({"username": username})
+                existing_username = await global_repository.find_one({"username": username,"is_deleted": False})
                 if existing_username:
                     raise AppException("El username ya está en uso.", 409)
 
@@ -521,12 +828,12 @@ class PlatformUserService:
                 if cleaned_username:
                     username = cleaned_username
 
-            existing_user = await global_repository.find_one({"email": user_data.email})
+            existing_user = await global_repository.find_one({"email": user_data.email,"is_deleted": False})
             if existing_user:
                 raise AppException("El email ya está registrado.", 409)
 
             if username:
-                existing_username = await global_repository.find_one({"username": username})
+                existing_username = await global_repository.find_one({"username": username,"is_deleted": False})
                 if existing_username:
                     raise AppException("El username ya está en uso.", 409)
 
@@ -707,12 +1014,7 @@ class PlatformUserService:
         PlatformUserService._check_platform_hierarchy(actor, user)
 
         if update_data.username is not None and update_data.username != user.username:
-            existing = await global_repository.find_one(
-                {
-                    "username": update_data.username,
-                    "_id": {"$ne": user.id},
-                }
-            )
+            existing = await global_repository.find_one({"username": update_data.username,"_id": {"$ne": user.id},"is_deleted": False})
             if existing:
                 raise AppException("El username ya está en uso", 409)
 
@@ -760,18 +1062,21 @@ class PlatformUserService:
         repository: BaseRepository[User],
         user_id: PydanticObjectId,
         actor: CurrentUser,
+        mongodb_client: AsyncMongoClient,
         hard_delete: bool = False,
     ) -> None:
         """Realiza el borrado lógico o físico de cualquier usuario autorizado."""
+
+        if actor.role != Role.SUPERADMIN:
+            raise AppException("No tienes permisos para eliminar usuarios.",403)
+
         user = await PlatformUserService._get_active_platform_user(repository,user_id)
         PlatformUserService._check_platform_hierarchy(actor, user)
 
-        if hard_delete and actor.role == Role.SUPERADMIN:
-            await repository.delete(user)
-        else:
-            user.is_deleted = True
-            user.deleted_at = datetime.now(timezone.utc)
-            user.deleted_by = actor.id
-            user.updated_by = actor.id
-            await repository.save(user)
-        await AuthSession.revoke_for_user(user.id, "user_deleted")
+        await _UserDeletionService.delete_user(
+            user=user,
+            actor=actor,
+            mongodb_client=mongodb_client,
+            hard_delete=hard_delete,
+            reason=("user_deleted_by_platform" if hard_delete else "user_soft_deleted_by_platform")
+        )

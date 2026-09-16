@@ -145,12 +145,14 @@ async def delete_user(
     user_id: PydanticObjectId,
     current_user: CurrentUser = Depends(require_tenant_permission(Module.USERS, Action.DELETE)),
     repository: TenantRepository[User] = Depends(get_current_tenant_user_repository),
+    mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
 ):
     """Elimina un usuario."""
     await TenantUserService.delete_tenant_user(
         repository=repository,
         user_id=user_id,
         actor=current_user,
+        mongodb_client=mongodb_client,
     )
     return {"detail": "Usuario eliminado exitosamente"}
 
@@ -357,6 +359,7 @@ async def delete_platform_user(
     user_id: PydanticObjectId,
     current_user: CurrentUser = Depends(require_platform_permission(Module.USERS, Action.DELETE)),
     repository: BaseRepository[User] = Depends(get_global_user_repository),
+    mongodb_client: AsyncMongoClient = Depends(get_mongodb_client),
     hard_delete: bool = Query(False, description="Realiza el borrado físico del usuario"),
 ):
     """Realiza el borrado lógico o físico de cualquier usuario autorizado."""
@@ -365,5 +368,6 @@ async def delete_platform_user(
         user_id=user_id,
         hard_delete=hard_delete,
         actor=current_user,
+        mongodb_client=mongodb_client,
     )
     return {"detail": "Usuario eliminado exitosamente"}
